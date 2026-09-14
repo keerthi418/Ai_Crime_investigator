@@ -1,7 +1,6 @@
 const API = "http://127.0.0.1:8000/api";
 
 let currentUser = null;
-
 let lastInvestigation = null;
 
 
@@ -12,41 +11,27 @@ let lastInvestigation = null;
 document.addEventListener("DOMContentLoaded", () => {
 
     const token = localStorage.getItem("access_token");
-
     const page = window.location.pathname.split("/").pop();
 
     if (token) {
-
         loadCurrentUser();
-
-    } else if (page === "index.html" || page === "") {
-
+    } 
+    else if (page === "index.html" || page === "") {
         window.location.href = "login.html";
-
     }
 
-
-    const loginForm =
-        document.getElementById("loginForm");
+    // Login form
+    const loginForm = document.getElementById("loginForm");
 
     if (loginForm) {
-
-        loginForm.addEventListener(
-            "submit",
-            login
-        );
+        loginForm.addEventListener("submit", login);
     }
 
-
-    const registerForm =
-        document.getElementById("registerForm");
+    // Register form
+    const registerForm = document.getElementById("registerForm");
 
     if (registerForm) {
-
-        registerForm.addEventListener(
-            "submit",
-            register
-        );
+        registerForm.addEventListener("submit", register);
     }
 
 });
@@ -60,12 +45,25 @@ async function login(event) {
 
     event.preventDefault();
 
-    const email =
-        document.getElementById("loginEmail").value.trim();
+    const email = document
+        .getElementById("loginEmail")
+        .value
+        .trim();
 
-    const password =
-        document.getElementById("loginPassword").value;
+    const password = document
+        .getElementById("loginPassword")
+        .value;
 
+    if (!email || !password) {
+
+        showMessage(
+            "loginMessage",
+            "Please enter email and password.",
+            "error"
+        );
+
+        return;
+    }
 
     showMessage(
         "loginMessage",
@@ -73,66 +71,74 @@ async function login(event) {
         "success"
     );
 
-
     try {
 
         const response = await fetch(
-            `${API}/login`,
+            `${API}/auth/login`,
             {
                 method: "POST",
 
                 headers: {
-                    "Content-Type":
-                        "application/json"
+                    "Content-Type": "application/json"
                 },
 
                 body: JSON.stringify({
-                    email,
-                    password
+                    email: email,
+                    password: password
                 })
             }
         );
 
-
         const data = await response.json();
-
 
         if (!response.ok) {
 
             throw new Error(
-                data.detail ||
-                "Login failed"
+                data.detail || "Login failed"
             );
         }
 
-
+        // Backend returns token
         localStorage.setItem(
             "access_token",
-            data.access_token
+            data.token
         );
 
+        // Save user information
+        if (data.user) {
 
-        localStorage.setItem(
-            "user",
-            JSON.stringify(data.user)
+            localStorage.setItem(
+                "user",
+                JSON.stringify(data.user)
+            );
+        }
+
+        showMessage(
+            "loginMessage",
+            "Login successful. Redirecting...",
+            "success"
         );
 
+        setTimeout(() => {
 
-        window.location.href =
-            "index.html";
+            window.location.href = "index.html";
+
+        }, 500);
 
     }
-
     catch (error) {
+
+        console.error(
+            "Login error:",
+            error
+        );
 
         showMessage(
             "loginMessage",
             error.message,
             "error"
         );
-
     }
-
 }
 
 
@@ -144,24 +150,30 @@ async function register(event) {
 
     event.preventDefault();
 
+    const username = document
+        .getElementById("registerUsername")
+        .value
+        .trim();
 
-    const username =
-        document.getElementById(
-            "registerUsername"
-        ).value.trim();
+    const email = document
+        .getElementById("registerEmail")
+        .value
+        .trim();
 
+    const password = document
+        .getElementById("registerPassword")
+        .value;
 
-    const email =
-        document.getElementById(
-            "registerEmail"
-        ).value.trim();
+    if (!username || !email || !password) {
 
+        showMessage(
+            "registerMessage",
+            "Please fill all fields.",
+            "error"
+        );
 
-    const password =
-        document.getElementById(
-            "registerPassword"
-        ).value;
-
+        return;
+    }
 
     showMessage(
         "registerMessage",
@@ -169,44 +181,33 @@ async function register(event) {
         "success"
     );
 
-
     try {
 
         const response = await fetch(
-            `${API}/register`,
+            `${API}/auth/register`,
             {
                 method: "POST",
 
                 headers: {
-                    "Content-Type":
-                        "application/json"
+                    "Content-Type": "application/json"
                 },
 
                 body: JSON.stringify({
-
-                    username,
-
-                    email,
-
-                    password
-
+                    username: username,
+                    email: email,
+                    password: password
                 })
             }
         );
 
-
-        const data =
-            await response.json();
-
+        const data = await response.json();
 
         if (!response.ok) {
 
             throw new Error(
-                data.detail ||
-                "Registration failed"
+                data.detail || "Registration failed"
             );
         }
-
 
         showMessage(
             "registerMessage",
@@ -214,11 +215,9 @@ async function register(event) {
             "success"
         );
 
-
-        document.getElementById(
-            "registerForm"
-        ).reset();
-
+        document
+            .getElementById("registerForm")
+            .reset();
 
         setTimeout(() => {
 
@@ -227,17 +226,19 @@ async function register(event) {
         }, 1500);
 
     }
-
     catch (error) {
+
+        console.error(
+            "Registration error:",
+            error
+        );
 
         showMessage(
             "registerMessage",
             error.message,
             "error"
         );
-
     }
-
 }
 
 
@@ -247,11 +248,9 @@ async function register(event) {
 
 async function loadCurrentUser() {
 
-    const token =
-        localStorage.getItem(
-            "access_token"
-        );
-
+    const token = localStorage.getItem(
+        "access_token"
+    );
 
     if (!token) {
 
@@ -259,22 +258,21 @@ async function loadCurrentUser() {
             "login.html";
 
         return;
-
     }
-
 
     try {
 
         const response = await fetch(
-            `${API}/me`,
+            `${API}/auth/me`,
             {
+                method: "GET",
+
                 headers: {
                     "Authorization":
                         `Bearer ${token}`
                 }
             }
         );
-
 
         if (!response.ok) {
 
@@ -284,31 +282,26 @@ async function loadCurrentUser() {
                 "login.html";
 
             return;
-
         }
-
 
         const data =
             await response.json();
 
-
         currentUser =
             data.user;
 
-
         updateUserUI();
-
 
         loadAuditLogs();
 
     }
-
     catch (error) {
 
-        console.error(error);
-
+        console.error(
+            "Current user error:",
+            error
+        );
     }
-
 }
 
 
@@ -322,61 +315,46 @@ function updateUserUI() {
         return;
     }
 
-
     const username =
         currentUser.username;
-
 
     const initial =
         username
             .charAt(0)
             .toUpperCase();
 
-
     const elements = {
 
-        sidebarUsername:
-            username,
+        sidebarUsername: username,
 
-        topUsername:
-            username,
+        topUsername: username,
 
-        welcomeName:
-            username,
+        welcomeName: username,
 
-        profileUsername:
-            username,
+        profileUsername: username,
 
         profileEmail:
             currentUser.email,
 
-        sidebarAvatar:
-            initial,
+        sidebarAvatar: initial,
 
-        topAvatar:
-            initial,
+        topAvatar: initial,
 
-        profileAvatar:
-            initial
-
+        profileAvatar: initial
     };
-
 
     Object.keys(elements).forEach(id => {
 
         const element =
             document.getElementById(id);
 
-
         if (element) {
 
             element.textContent =
                 elements[id];
-
         }
 
     });
-
 }
 
 
@@ -391,13 +369,12 @@ async function logout() {
             "access_token"
         );
 
-
     try {
 
         if (token) {
 
             await fetch(
-                `${API}/logout`,
+                `${API}/auth/logout`,
                 {
                     method: "POST",
 
@@ -407,23 +384,21 @@ async function logout() {
                     }
                 }
             );
-
         }
 
     }
-
     catch (error) {
 
-        console.error(error);
-
+        console.error(
+            "Logout error:",
+            error
+        );
     }
-
 
     localStorage.clear();
 
     window.location.href =
         "login.html";
-
 }
 
 
@@ -443,21 +418,17 @@ function showPage(pageName, button) {
 
         });
 
-
     const page =
         document.getElementById(
             pageName + "Page"
         );
-
 
     if (page) {
 
         page.classList.add(
             "active-page"
         );
-
     }
-
 
     document
         .querySelectorAll(".nav-item")
@@ -469,15 +440,12 @@ function showPage(pageName, button) {
 
         });
 
-
     if (button) {
 
         button.classList.add(
             "active"
         );
-
     }
-
 
     const titles = {
 
@@ -492,31 +460,24 @@ function showPage(pageName, button) {
 
         profile:
             "Investigator Profile"
-
     };
-
 
     const title =
         document.getElementById(
             "pageTitle"
         );
 
-
     if (title) {
 
         title.textContent =
             titles[pageName] ||
             "AI Crime Investigator";
-
     }
-
 
     if (pageName === "activity") {
 
         loadAuditLogs();
-
     }
-
 }
 
 
@@ -531,12 +492,10 @@ function openInvestigation() {
             ".nav-item:nth-child(2)"
         );
 
-
     showPage(
         "investigation",
         button
     );
-
 }
 
 
@@ -547,22 +506,22 @@ function openInvestigation() {
 async function runInvestigation() {
 
     const text =
-        document.getElementById(
-            "caseText"
-        ).value.trim();
-
+        document
+            .getElementById("caseText")
+            .value
+            .trim();
 
     const startNode =
-        document.getElementById(
-            "startNode"
-        ).value.trim();
-
+        document
+            .getElementById("startNode")
+            .value
+            .trim();
 
     const targetNode =
-        document.getElementById(
-            "targetNode"
-        ).value.trim();
-
+        document
+            .getElementById("targetNode")
+            .value
+            .trim();
 
     if (!text) {
 
@@ -573,26 +532,24 @@ async function runInvestigation() {
         );
 
         return;
-
     }
-
 
     const buttonText =
         document.getElementById(
             "analysisButtonText"
         );
 
+    if (buttonText) {
 
-    buttonText.textContent =
-        "Analyzing investigation...";
-
+        buttonText.textContent =
+            "Analyzing investigation...";
+    }
 
     showMessage(
         "investigationMessage",
         "Running NLP, graph search and AI reasoning...",
         "success"
     );
-
 
     try {
 
@@ -601,6 +558,12 @@ async function runInvestigation() {
                 "access_token"
             );
 
+        if (!token) {
+
+            throw new Error(
+                "Please login before starting an investigation."
+            );
+        }
 
         const response =
             await fetch(
@@ -615,28 +578,23 @@ async function runInvestigation() {
 
                         "Authorization":
                             `Bearer ${token}`
-
                     },
 
                     body: JSON.stringify({
 
-                        text,
+                        text: text,
 
                         start_node:
                             startNode,
 
                         target_node:
                             targetNode
-
                     })
-
                 }
             );
 
-
         const data =
             await response.json();
-
 
         if (!response.ok) {
 
@@ -644,18 +602,14 @@ async function runInvestigation() {
                 data.detail ||
                 "Investigation failed"
             );
-
         }
-
 
         lastInvestigation =
             data;
 
-
         displayInvestigation(
             data
         );
-
 
         showMessage(
             "investigationMessage",
@@ -663,29 +617,30 @@ async function runInvestigation() {
             "success"
         );
 
-
         loadAuditLogs();
 
-
     }
-
     catch (error) {
+
+        console.error(
+            "Investigation error:",
+            error
+        );
 
         showMessage(
             "investigationMessage",
             error.message,
             "error"
         );
-
     }
-
     finally {
 
-        buttonText.textContent =
-            "Run AI Investigation";
+        if (buttonText) {
 
+            buttonText.textContent =
+                "Run AI Investigation";
+        }
     }
-
 }
 
 
@@ -700,155 +655,144 @@ function displayInvestigation(data) {
             "resultsArea"
         );
 
+    if (results) {
 
-    results.classList.remove(
-        "hidden"
-    );
-
+        results.classList.remove(
+            "hidden"
+        );
+    }
 
     const entities =
         data.entities || [];
 
-
     const relations =
         data.relations || [];
-
 
     const contradictions =
         data.contradictions || [];
 
-
     const confidence =
         data.bayesian_confidence;
 
+    setText(
+        "resultEntityCount",
+        entities.length
+    );
 
-    document.getElementById(
-        "resultEntityCount"
-    ).textContent =
-        entities.length;
+    setText(
+        "resultRelationCount",
+        relations.length
+    );
 
+    setText(
+        "resultConfidence",
+        formatConfidence(confidence)
+    );
 
-    document.getElementById(
-        "resultRelationCount"
-    ).textContent =
-        relations.length;
+    setText(
+        "resultContradictions",
+        contradictions.length
+    );
 
+    setText(
+        "entityCount",
+        entities.length
+    );
 
-    document.getElementById(
-        "resultConfidence"
-    ).textContent =
-        formatConfidence(
-            confidence
-        );
-
-
-    document.getElementById(
-        "resultContradictions"
-    ).textContent =
-        contradictions.length;
-
-
-    document.getElementById(
-        "entityCount"
-    ).textContent =
-        entities.length;
-
-
-    document.getElementById(
-        "confidenceValue"
-    ).textContent =
-        formatConfidence(
-            confidence
-        );
-
+    setText(
+        "confidenceValue",
+        formatConfidence(confidence)
+    );
 
     displayEntities(
         entities
     );
 
-
     displayRelations(
         relations
     );
 
-
     displayAlgorithms(
         data.search_results || {}
     );
-
 
     displayConfidence(
         confidence,
         data.explanation || []
     );
 
-
     displayContradictions(
         contradictions
     );
-
 
     displayExplanation(
         data.explanation || []
     );
 
-
     renderGraph(
         data.graph
     );
 
-
-    const caseCount =
-        parseInt(
-            document.getElementById(
-                "caseCount"
-            ).textContent
-        ) || 0;
-
-
-    document.getElementById(
-        "caseCount"
-    ).textContent =
-        caseCount + 1;
-
-
-    document
-        .getElementById(
-            "dashboardResult"
-        )
-        .classList.remove(
-            "hidden"
+    const caseCountElement =
+        document.getElementById(
+            "caseCount"
         );
 
+    if (caseCountElement) {
 
-    document.getElementById(
-        "lastSummary"
-    ).innerHTML = `
+        const caseCount =
+            parseInt(
+                caseCountElement.textContent
+            ) || 0;
 
-        <div class="quick-card">
+        caseCountElement.textContent =
+            caseCount + 1;
+    }
 
-            <div class="quick-icon">
-                🧠
+    const dashboardResult =
+        document.getElementById(
+            "dashboardResult"
+        );
+
+    if (dashboardResult) {
+
+        dashboardResult.classList.remove(
+            "hidden"
+        );
+    }
+
+    const lastSummary =
+        document.getElementById(
+            "lastSummary"
+        );
+
+    if (lastSummary) {
+
+        lastSummary.innerHTML = `
+            <div class="quick-card">
+
+                <div class="quick-icon">
+                    🧠
+                </div>
+
+                <div>
+
+                    <strong>
+                        Investigation completed
+                    </strong>
+
+                    <span>
+                        ${entities.length} entities,
+                        ${relations.length} relationships,
+                        confidence
+                        ${formatConfidence(confidence)}
+                    </span>
+
+                </div>
+
             </div>
-
-            <div>
-
-                <strong>
-                    Investigation completed
-                </strong>
-
-                <span>
-                    ${entities.length} entities,
-                    ${relations.length} relationships,
-                    confidence ${formatConfidence(confidence)}
-                </span>
-
-            </div>
-
-        </div>
-
-    `;
-
+        `;
+    }
 }
 
 
@@ -856,18 +800,18 @@ function displayInvestigation(data) {
    ENTITIES
 ========================================================= */
 
-function displayEntities(
-    entities
-) {
+function displayEntities(entities) {
 
     const container =
         document.getElementById(
             "entitiesList"
         );
 
+    if (!container) {
+        return;
+    }
 
     container.innerHTML = "";
-
 
     if (!entities.length) {
 
@@ -875,9 +819,7 @@ function displayEntities(
             "<span>No entities detected.</span>";
 
         return;
-
     }
-
 
     entities.forEach(entity => {
 
@@ -886,22 +828,17 @@ function displayEntities(
                 "span"
             );
 
-
         tag.className =
             "entity-tag " +
-            entity.type.toLowerCase();
-
+            String(
+                entity.type || ""
+            ).toLowerCase();
 
         tag.textContent =
             `${entity.text} · ${entity.type}`;
 
-
-        container.appendChild(
-            tag
-        );
-
+        container.appendChild(tag);
     });
-
 }
 
 
@@ -909,18 +846,18 @@ function displayEntities(
    RELATIONS
 ========================================================= */
 
-function displayRelations(
-    relations
-) {
+function displayRelations(relations) {
 
     const container =
         document.getElementById(
             "relationsList"
         );
 
+    if (!container) {
+        return;
+    }
 
     container.innerHTML = "";
-
 
     if (!relations.length) {
 
@@ -928,9 +865,7 @@ function displayRelations(
             "<span>No relationships detected.</span>";
 
         return;
-
     }
-
 
     relations.forEach(relation => {
 
@@ -939,28 +874,35 @@ function displayRelations(
                 "div"
             );
 
-
         item.className =
             "relation-item";
 
-
         item.innerHTML = `
+            <b>
+                ${escapeHtml(
+                    relation.source
+                )}
+            </b>
 
-            <b>${escapeHtml(relation.source)}</b>
+            &nbsp;
 
-            &nbsp; ${escapeHtml(relation.relation)} → &nbsp;
+            ${escapeHtml(
+                relation.relation
+            )}
 
-            <b>${escapeHtml(relation.target)}</b>
+            →
 
+            &nbsp;
+
+            <b>
+                ${escapeHtml(
+                    relation.target
+                )}
+            </b>
         `;
 
-
-        container.appendChild(
-            item
-        );
-
+        container.appendChild(item);
     });
-
 }
 
 
@@ -968,43 +910,37 @@ function displayRelations(
    SEARCH ALGORITHMS
 ========================================================= */
 
-function displayAlgorithms(
-    results
-) {
+function displayAlgorithms(results) {
 
-    document.getElementById(
-        "bfsResult"
-    ).textContent =
-        formatPath(results.BFS);
+    setText(
+        "bfsResult",
+        formatPath(results.BFS)
+    );
 
+    setText(
+        "dfsResult",
+        formatPath(results.DFS)
+    );
 
-    document.getElementById(
-        "dfsResult"
-    ).textContent =
-        formatPath(results.DFS);
-
-
-    document.getElementById(
-        "astarResult"
-    ).textContent =
-        formatPath(results["A*"]);
-
+    setText(
+        "astarResult",
+        formatPath(results["A*"])
+    );
 }
 
+
+/* =========================================================
+   FORMAT PATH
+========================================================= */
 
 function formatPath(path) {
 
     if (!path || !path.length) {
 
         return "No path found";
-
     }
 
-
-    return path.join(
-        " → "
-    );
-
+    return path.join(" → ");
 }
 
 
@@ -1022,18 +958,20 @@ function displayConfidence(
             confidence
         );
 
+    setText(
+        "confidenceCircle",
+        value
+    );
 
-    document.getElementById(
-        "confidenceCircle"
-    ).textContent =
-        value;
+    setText(
+        "confidenceExplanation",
 
-
-    document.getElementById(
-        "confidenceExplanation"
-    ).textContent =
-        explanation.join(" ");
-
+        Array.isArray(explanation)
+            ? explanation.join(" ")
+            : String(
+                explanation || ""
+            )
+    );
 }
 
 
@@ -1050,9 +988,11 @@ function displayContradictions(
             "contradictionsList"
         );
 
+    if (!container) {
+        return;
+    }
 
     container.innerHTML = "";
-
 
     if (!contradictions.length) {
 
@@ -1060,9 +1000,7 @@ function displayContradictions(
             "✓ No contradictions detected.";
 
         return;
-
     }
-
 
     contradictions.forEach(item => {
 
@@ -1071,21 +1009,14 @@ function displayContradictions(
                 "div"
             );
 
-
         div.className =
             "contradiction-item";
-
 
         div.textContent =
             item;
 
-
-        container.appendChild(
-            div
-        );
-
+        container.appendChild(div);
     });
-
 }
 
 
@@ -1102,19 +1033,22 @@ function displayExplanation(
             "explanationList"
         );
 
+    if (!container) {
+        return;
+    }
 
     container.innerHTML = "";
 
-
     if (!explanation.length) {
 
-        container.innerHTML =
-            "<div class='explanation-item'>No explanation available.</div>";
+        container.innerHTML = `
+            <div class="explanation-item">
+                No explanation available.
+            </div>
+        `;
 
         return;
-
     }
-
 
     explanation.forEach(item => {
 
@@ -1123,21 +1057,14 @@ function displayExplanation(
                 "div"
             );
 
-
         div.className =
             "explanation-item";
-
 
         div.textContent =
             item;
 
-
-        container.appendChild(
-            div
-        );
-
+        container.appendChild(div);
     });
-
 }
 
 
@@ -1152,96 +1079,99 @@ function renderGraph(graphData) {
             "cy"
         );
 
-
-    if (!graphData) {
-
+    if (!container || !graphData) {
         return;
-
     }
 
-
-    if (typeof cytoscape === "undefined") {
+    if (
+        typeof cytoscape ===
+        "undefined"
+    ) {
 
         container.innerHTML =
             "<p style='padding:20px'>Cytoscape failed to load.</p>";
 
         return;
-
     }
-
 
     const elements = [];
 
-
-    (graphData.nodes || []).forEach(
-        node => {
-
-            elements.push({
-
-                data: {
-
-                    id:
-                        String(node.id),
-
-                    label:
-                        String(node.id)
-
-                }
-
-            });
-
-        }
-    );
-
-
-    (graphData.edges || []).forEach(
-        (edge, index) => {
+    (graphData.nodes || [])
+        .forEach(node => {
 
             elements.push({
 
                 data: {
 
-                    id:
-                        `edge-${index}`,
+                    id: String(
+                        node.id
+                    ),
 
-                    source:
-                        String(edge.source),
-
-                    target:
-                        String(edge.target),
-
-                    label:
-                        String(edge.relation)
-
+                    label: String(
+                        node.id
+                    )
                 }
-
             });
 
-        }
-    );
+        });
 
+    (graphData.edges || [])
+        .forEach(
+            (edge, index) => {
+
+                elements.push({
+
+                    data: {
+
+                        id:
+                            `edge-${index}`,
+
+                        source:
+                            String(
+                                edge.source
+                            ),
+
+                        target:
+                            String(
+                                edge.target
+                            ),
+
+                        label:
+                            String(
+                                edge.relation
+                            )
+                    }
+                });
+
+            }
+        );
 
     cytoscape({
 
-        container,
+        container:
+            container,
 
-        elements,
+        elements:
+            elements,
 
         layout: {
 
-            name: "cose",
+            name:
+                "cose",
 
-            animate: true,
+            animate:
+                true,
 
-            padding: 40
-
+            padding:
+                40
         },
 
         style: [
 
             {
 
-                selector: "node",
+                selector:
+                    "node",
 
                 style: {
 
@@ -1277,14 +1207,13 @@ function renderGraph(graphData) {
 
                     "border-color":
                         "#dbeafe"
-
                 }
-
             },
 
             {
 
-                selector: "edge",
+                selector:
+                    "edge",
 
                 style: {
 
@@ -1320,15 +1249,10 @@ function renderGraph(graphData) {
 
                     "text-background-padding":
                         3
-
                 }
-
             }
-
         ]
-
     });
-
 }
 
 
@@ -1343,20 +1267,18 @@ async function loadAuditLogs() {
             "access_token"
         );
 
-
     if (!token) {
-
         return;
-
     }
-
 
     try {
 
         const response =
             await fetch(
-                `${API}/audit-logs`,
+                `${API}/auth/logs`,
                 {
+                    method: "GET",
+
                     headers: {
                         "Authorization":
                             `Bearer ${token}`
@@ -1364,48 +1286,41 @@ async function loadAuditLogs() {
                 }
             );
 
-
         if (!response.ok) {
-
             return;
-
         }
-
 
         const data =
             await response.json();
 
-
         const logs =
             data.logs || [];
 
+        const logCount =
+            document.getElementById(
+                "logCount"
+            );
 
-        document.getElementById(
-            "logCount"
-        ).textContent =
-            logs.length;
+        if (logCount) {
 
+            logCount.textContent =
+                logs.length;
+        }
 
         const table =
             document.getElementById(
                 "auditTable"
             );
 
-
         if (!table) {
-
             return;
-
         }
 
-
         table.innerHTML = "";
-
 
         if (!logs.length) {
 
             table.innerHTML = `
-
                 <tr>
 
                     <td colspan="5">
@@ -1413,13 +1328,10 @@ async function loadAuditLogs() {
                     </td>
 
                 </tr>
-
             `;
 
             return;
-
         }
-
 
         logs.forEach(log => {
 
@@ -1428,18 +1340,10 @@ async function loadAuditLogs() {
                     "tr"
                 );
 
-
             const date =
                 new Date(
-                    log.timestamp
+                    log.created_at
                 );
-
-
-            const statusClass =
-                log.status === "SUCCESS"
-                    ? "success"
-                    : "failed";
-
 
             row.innerHTML = `
 
@@ -1449,50 +1353,41 @@ async function loadAuditLogs() {
 
                 <td>
                     <strong>
-                        ${escapeHtml(log.action)}
+                        ${escapeHtml(
+                            log.action
+                        )}
                     </strong>
                 </td>
 
                 <td>
-                    ${log.case_id || "—"}
+                    —
                 </td>
 
                 <td>
                     ${escapeHtml(
-                        log.description || ""
+                        log.details || ""
                     )}
                 </td>
 
                 <td>
-
-                    <span
-                        class="log-status ${statusClass}"
-                    >
-                        ${escapeHtml(log.status)}
+                    <span class="log-status success">
+                        SUCCESS
                     </span>
-
                 </td>
 
             `;
 
-
-            table.appendChild(
-                row
-            );
-
+            table.appendChild(row);
         });
 
     }
-
     catch (error) {
 
         console.error(
             "Audit log error:",
             error
         );
-
     }
-
 }
 
 
@@ -1512,13 +1407,21 @@ function openReport() {
         );
 
         return;
-
     }
 
-
     const file =
-        lastInvestigation.report.file;
+        lastInvestigation
+            .report
+            .file;
 
+    if (!file) {
+
+        alert(
+            "Report file is not available."
+        );
+
+        return;
+    }
 
     const fileName =
         file
@@ -1526,16 +1429,13 @@ function openReport() {
             .split("/")
             .pop();
 
-
     const url =
         `http://127.0.0.1:8000/reports/${fileName}`;
-
 
     window.open(
         url,
         "_blank"
     );
-
 }
 
 
@@ -1545,27 +1445,33 @@ function openReport() {
 
 function showRegister() {
 
-    document
-        .getElementById(
+    const modal =
+        document.getElementById(
             "registerModal"
-        )
-        .classList.remove(
-            "hidden"
         );
 
+    if (modal) {
+
+        modal.classList.remove(
+            "hidden"
+        );
+    }
 }
 
 
 function hideRegister() {
 
-    document
-        .getElementById(
+    const modal =
+        document.getElementById(
             "registerModal"
-        )
-        .classList.add(
-            "hidden"
         );
 
+    if (modal) {
+
+        modal.classList.add(
+            "hidden"
+        );
+    }
 }
 
 
@@ -1583,25 +1489,29 @@ function togglePassword(
             inputId
         );
 
+    if (!input) {
+        return;
+    }
 
-    if (input.type === "password") {
+    if (
+        input.type ===
+        "password"
+    ) {
 
         input.type =
             "text";
 
         button.textContent =
             "Hide";
-
-    } else {
+    }
+    else {
 
         input.type =
             "password";
 
         button.textContent =
             "Show";
-
     }
-
 }
 
 
@@ -1620,21 +1530,15 @@ function showMessage(
             elementId
         );
 
-
     if (!element) {
-
         return;
-
     }
-
 
     element.textContent =
         message;
 
-
     element.className =
         `message ${type}`;
-
 }
 
 
@@ -1642,9 +1546,7 @@ function showMessage(
    CONFIDENCE FORMAT
 ========================================================= */
 
-function formatConfidence(
-    value
-) {
+function formatConfidence(value) {
 
     if (
         value === null ||
@@ -1652,14 +1554,13 @@ function formatConfidence(
     ) {
 
         return "—";
-
     }
 
-
-    return Math.round(
-        Number(value) * 100
-    ) + "%";
-
+    return (
+        Math.round(
+            Number(value) * 100
+        ) + "%"
+    );
 }
 
 
@@ -1667,15 +1568,54 @@ function formatConfidence(
    HTML ESCAPE
 ========================================================= */
 
-function escapeHtml(
+function escapeHtml(value) {
+
+    return String(value)
+
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+}
+
+
+/* =========================================================
+   SET TEXT HELPER
+========================================================= */
+
+function setText(
+    elementId,
     value
 ) {
 
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+    const element =
+        document.getElementById(
+            elementId
+        );
 
+    if (element) {
+
+        element.textContent =
+            value;
+    }
 }

@@ -121,8 +121,9 @@ class RegisterRequest(BaseModel):
     password: str
 
 
+# LOGIN USES EMAIL
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 
@@ -161,18 +162,21 @@ def register(request: RegisterRequest):
     # -----------------------------------------------------
 
     if not username:
+
         raise HTTPException(
             status_code=400,
             detail="Username is required."
         )
 
     if not email:
+
         raise HTTPException(
             status_code=400,
             detail="Email is required."
         )
 
     if len(password) < 6:
+
         raise HTTPException(
             status_code=400,
             detail="Password must contain at least 6 characters."
@@ -251,19 +255,23 @@ def register(request: RegisterRequest):
 @router.post("/auth/login")
 def login(request: LoginRequest):
 
-    username = request.username.strip()
-
     # -----------------------------------------------------
-    # Find user
+    # Get email
     # -----------------------------------------------------
 
-    user = get_user_by_username(username)
+    email = request.email.strip().lower()
+
+    # -----------------------------------------------------
+    # Find user by EMAIL
+    # -----------------------------------------------------
+
+    user = get_user_by_email(email)
 
     if not user:
 
         raise HTTPException(
             status_code=401,
-            detail="Invalid username or password."
+            detail="Invalid email or password."
         )
 
     # -----------------------------------------------------
@@ -278,31 +286,37 @@ def login(request: LoginRequest):
     if not password_valid:
 
         log_activity(
-            username,
+            user["username"],
             "LOGIN_FAILED",
             "Invalid password."
         )
 
         raise HTTPException(
             status_code=401,
-            detail="Invalid username or password."
+            detail="Invalid email or password."
         )
 
     # -----------------------------------------------------
     # Create session
     # -----------------------------------------------------
 
-    token = create_session(username)
+    token = create_session(
+        user["username"]
+    )
 
     # -----------------------------------------------------
     # Activity log
     # -----------------------------------------------------
 
     log_activity(
-        username,
+        user["username"],
         "LOGIN",
         "Investigator logged into the system."
     )
+
+    # -----------------------------------------------------
+    # Return response
+    # -----------------------------------------------------
 
     return {
         "status": "success",
@@ -683,13 +697,20 @@ async def investigate_excel(
             file_content
         )
 
-        # Select engine based on extension
+        # -------------------------------------------------
+        # XLSX
+        # -------------------------------------------------
+
         if filename.endswith(".xlsx"):
 
             dataframe = pd.read_excel(
                 excel_file,
                 engine="openpyxl"
             )
+
+        # -------------------------------------------------
+        # XLS
+        # -------------------------------------------------
 
         else:
 
@@ -699,6 +720,7 @@ async def investigate_excel(
             )
 
     except HTTPException:
+
         raise
 
     except Exception as e:
@@ -720,7 +742,7 @@ async def investigate_excel(
         )
 
     # -----------------------------------------------------
-    # REMOVE COMPLETELY EMPTY ROWS
+    # REMOVE EMPTY ROWS
     # -----------------------------------------------------
 
     dataframe = dataframe.dropna(
@@ -728,7 +750,7 @@ async def investigate_excel(
     )
 
     # -----------------------------------------------------
-    # REMOVE COMPLETELY EMPTY COLUMNS
+    # REMOVE EMPTY COLUMNS
     # -----------------------------------------------------
 
     dataframe = dataframe.dropna(
@@ -762,7 +784,7 @@ async def investigate_excel(
         rows_limited = True
 
     # -----------------------------------------------------
-    # CONVERT EXCEL DATA TO INVESTIGATION TEXT
+    # CONVERT EXCEL TO TEXT
     # -----------------------------------------------------
 
     case_parts = []
@@ -876,7 +898,7 @@ async def investigate_excel(
         target = ""
 
     # =====================================================
-    # SEARCH - BFS
+    # BFS
     # =====================================================
 
     try:
@@ -892,7 +914,7 @@ async def investigate_excel(
         bfs = []
 
     # =====================================================
-    # SEARCH - DFS
+    # DFS
     # =====================================================
 
     try:
@@ -908,7 +930,7 @@ async def investigate_excel(
         dfs = []
 
     # =====================================================
-    # SEARCH - A*
+    # A*
     # =====================================================
 
     try:
@@ -930,7 +952,7 @@ async def investigate_excel(
     }
 
     # =====================================================
-    # CSP - CONTRADICTION DETECTION
+    # CSP
     # =====================================================
 
     try:
@@ -981,7 +1003,7 @@ async def investigate_excel(
         )
 
     # =====================================================
-    # PDF REPORT GENERATION
+    # PDF REPORT
     # =====================================================
 
     try:
