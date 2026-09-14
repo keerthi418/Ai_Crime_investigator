@@ -1,5 +1,25 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Depends,
+    UploadFile,
+    File
+)
+
+from fastapi.security import (
+    HTTPBearer,
+    HTTPAuthorizationCredentials
+)
+
 from pydantic import BaseModel
+
+import pandas as pd
+import io
+
+
+# =========================================================
+# DATABASE
+# =========================================================
 
 from backend.database.database import (
     init_database,
@@ -12,6 +32,11 @@ from backend.database.models import (
     get_user_by_email
 )
 
+
+# =========================================================
+# AUTHENTICATION
+# =========================================================
+
 from backend.auth.auth import (
     hash_password,
     verify_password,
@@ -20,8 +45,18 @@ from backend.auth.auth import (
     remove_session
 )
 
+
+# =========================================================
+# NLP
+# =========================================================
+
 from backend.nlp.ner_extractor import extract_entities
 from backend.nlp.relation_extractor import extract_relations
+
+
+# =========================================================
+# GRAPH
+# =========================================================
 
 from backend.graph.graph_store import (
     build_graph,
@@ -30,6 +65,11 @@ from backend.graph.graph_store import (
     astar_search,
     graph_json
 )
+
+
+# =========================================================
+# REASONING
+# =========================================================
 
 from backend.reasoning.bayesian import (
     calculate_confidence,
@@ -40,37 +80,53 @@ from backend.reasoning.csp import (
     detect_contradictions
 )
 
+
+# =========================================================
+# REPORT
+# =========================================================
+
 from backend.report.report_generator import (
     generate_report
 )
 
 
+# =========================================================
+# ROUTER
+# =========================================================
+
 router = APIRouter()
 
 
-# Initialize database
+# =========================================================
+# AUTHENTICATION SECURITY
+# =========================================================
+
+security = HTTPBearer(auto_error=False)
+
+
+# =========================================================
+# DATABASE INITIALIZATION
+# =========================================================
+
 init_database()
 
 
 # =========================================================
-# MODELS
+# REQUEST MODELS
 # =========================================================
 
 class RegisterRequest(BaseModel):
-
     username: str
     email: str
     password: str
 
 
 class LoginRequest(BaseModel):
-
     username: str
     password: str
 
 
 class InvestigationRequest(BaseModel):
-
     text: str
     start_node: str = ""
     target_node: str = ""
@@ -100,29 +156,32 @@ def register(request: RegisterRequest):
     email = request.email.strip().lower()
     password = request.password
 
+    # -----------------------------------------------------
     # Validation
-    if not username:
+    # -----------------------------------------------------
 
+    if not username:
         raise HTTPException(
             status_code=400,
             detail="Username is required."
         )
 
     if not email:
-
         raise HTTPException(
             status_code=400,
             detail="Email is required."
         )
 
     if len(password) < 6:
-
         raise HTTPException(
             status_code=400,
             detail="Password must contain at least 6 characters."
         )
 
+    # -----------------------------------------------------
     # Check username
+    # -----------------------------------------------------
+
     if get_user_by_username(username):
 
         raise HTTPException(
@@ -130,7 +189,10 @@ def register(request: RegisterRequest):
             detail="Username already exists."
         )
 
+    # -----------------------------------------------------
     # Check email
+    # -----------------------------------------------------
+
     if get_user_by_email(email):
 
         raise HTTPException(
@@ -138,10 +200,16 @@ def register(request: RegisterRequest):
             detail="Email already registered."
         )
 
+    # -----------------------------------------------------
     # Hash password
+    # -----------------------------------------------------
+
     password_hash = hash_password(password)
 
+    # -----------------------------------------------------
     # Create user
+    # -----------------------------------------------------
+
     user_id = create_user(
         username,
         email,
@@ -155,7 +223,10 @@ def register(request: RegisterRequest):
             detail="Account creation failed."
         )
 
-    # Log activity
+    # -----------------------------------------------------
+    # Activity log
+    # -----------------------------------------------------
+
     log_activity(
         username,
         "ACCOUNT_CREATED",
@@ -163,21 +234,13 @@ def register(request: RegisterRequest):
     )
 
     return {
-
         "status": "success",
-
         "message": "Account created successfully.",
-
         "user": {
-
             "id": user_id,
-
             "username": username,
-
             "email": email
-
         }
-
     }
 
 
@@ -190,6 +253,10 @@ def login(request: LoginRequest):
 
     username = request.username.strip()
 
+    # -----------------------------------------------------
+    # Find user
+    # -----------------------------------------------------
+
     user = get_user_by_username(username)
 
     if not user:
@@ -198,6 +265,10 @@ def login(request: LoginRequest):
             status_code=401,
             detail="Invalid username or password."
         )
+
+    # -----------------------------------------------------
+    # Verify password
+    # -----------------------------------------------------
 
     password_valid = verify_password(
         request.password,
@@ -217,7 +288,15 @@ def login(request: LoginRequest):
             detail="Invalid username or password."
         )
 
+    # -----------------------------------------------------
+    # Create session
+    # -----------------------------------------------------
+
     token = create_session(username)
+
+    # -----------------------------------------------------
+    # Activity log
+    # -----------------------------------------------------
 
     log_activity(
         username,
@@ -226,23 +305,14 @@ def login(request: LoginRequest):
     )
 
     return {
-
         "status": "success",
-
         "message": "Login successful.",
-
         "token": token,
-
         "user": {
-
             "id": user["id"],
-
             "username": user["username"],
-
             "email": user["email"]
-
         }
-
     }
 
 
@@ -252,20 +322,29 @@ def login(request: LoginRequest):
 
 @router.post("/auth/logout")
 def logout(
-    authorization: str | None = Header(default=None)
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ):
 
-    if not authorization:
+    # -----------------------------------------------------
+    # No token
+    # -----------------------------------------------------
+
+    if not credentials:
 
         return {
             "status": "success",
             "message": "Already logged out."
         }
 
-    token = authorization.replace(
-        "Bearer ",
-        ""
-    )
+    # -----------------------------------------------------
+    # Get token
+    # -----------------------------------------------------
+
+    token = credentials.credentials
+
+    # -----------------------------------------------------
+    # Find logged-in user
+    # -----------------------------------------------------
 
     username = get_session_user(token)
 
@@ -280,11 +359,8 @@ def logout(
         remove_session(token)
 
     return {
-
         "status": "success",
-
         "message": "Logout successful."
-
     }
 
 
@@ -294,20 +370,25 @@ def logout(
 
 @router.get("/auth/me")
 def current_user(
-    authorization: str | None = Header(default=None)
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ):
 
-    if not authorization:
+    # -----------------------------------------------------
+    # Check authentication
+    # -----------------------------------------------------
+
+    if not credentials:
 
         raise HTTPException(
             status_code=401,
             detail="Authentication required."
         )
 
-    token = authorization.replace(
-        "Bearer ",
-        ""
-    )
+    # -----------------------------------------------------
+    # Extract token
+    # -----------------------------------------------------
+
+    token = credentials.credentials
 
     username = get_session_user(token)
 
@@ -317,6 +398,10 @@ def current_user(
             status_code=401,
             detail="Invalid or expired session."
         )
+
+    # -----------------------------------------------------
+    # Get user
+    # -----------------------------------------------------
 
     user = get_user_by_username(username)
 
@@ -328,43 +413,37 @@ def current_user(
         )
 
     return {
-
         "status": "success",
-
         "user": {
-
             "id": user["id"],
-
             "username": user["username"],
-
             "email": user["email"]
-
         }
-
     }
 
 
 # =========================================================
-# INVESTIGATION
+# TEXT INVESTIGATION
 # =========================================================
 
 @router.post("/investigate")
 def investigate(
     request: InvestigationRequest,
-    authorization: str | None = Header(default=None)
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ):
 
-    if not authorization:
+    # -----------------------------------------------------
+    # Authentication
+    # -----------------------------------------------------
+
+    if not credentials:
 
         raise HTTPException(
             status_code=401,
             detail="Please login before starting an investigation."
         )
 
-    token = authorization.replace(
-        "Bearer ",
-        ""
-    )
+    token = credentials.credentials
 
     username = get_session_user(token)
 
@@ -375,6 +454,10 @@ def investigate(
             detail="Invalid session. Please login again."
         )
 
+    # -----------------------------------------------------
+    # Validate case description
+    # -----------------------------------------------------
+
     if not request.text.strip():
 
         raise HTTPException(
@@ -382,21 +465,40 @@ def investigate(
             detail="Case description cannot be empty."
         )
 
+    # =====================================================
+    # NLP - ENTITY EXTRACTION
+    # =====================================================
+
     entities = extract_entities(
         request.text
     )
+
+    # =====================================================
+    # NLP - RELATION EXTRACTION
+    # =====================================================
 
     relations = extract_relations(
         request.text
     )
 
+    # =====================================================
+    # GRAPH CONSTRUCTION
+    # =====================================================
+
     graph = build_graph(
         relations
     )
 
-    start = request.start_node.strip()
+    # =====================================================
+    # SEARCH PARAMETERS
+    # =====================================================
 
+    start = request.start_node.strip()
     target = request.target_node.strip()
+
+    # =====================================================
+    # BFS
+    # =====================================================
 
     bfs = bfs_search(
         graph,
@@ -404,11 +506,19 @@ def investigate(
         target
     )
 
+    # =====================================================
+    # DFS
+    # =====================================================
+
     dfs = dfs_search(
         graph,
         start,
         target
     )
+
+    # =====================================================
+    # A*
+    # =====================================================
 
     astar = astar_search(
         graph,
@@ -417,19 +527,23 @@ def investigate(
     )
 
     search_results = {
-
         "BFS": bfs,
-
         "DFS": dfs,
-
         "A*": astar
-
     }
+
+    # =====================================================
+    # CSP - CONTRADICTION DETECTION
+    # =====================================================
 
     contradictions = detect_contradictions(
         request.text,
         relations
     )
+
+    # =====================================================
+    # BAYESIAN CONFIDENCE
+    # =====================================================
 
     confidence = calculate_confidence(
         entities,
@@ -437,11 +551,19 @@ def investigate(
         contradictions
     )
 
+    # =====================================================
+    # CONFIDENCE EXPLANATION
+    # =====================================================
+
     explanation = explain_confidence(
         entities,
         relations,
         contradictions
     )
+
+    # =====================================================
+    # PDF REPORT GENERATION
+    # =====================================================
 
     report_file = generate_report(
         request.text,
@@ -452,15 +574,474 @@ def investigate(
         contradictions
     )
 
+    # =====================================================
+    # ACTIVITY LOG
+    # =====================================================
+
     log_activity(
         username,
         "INVESTIGATION",
         "Crime investigation executed."
     )
 
+    # =====================================================
+    # FINAL RESPONSE
+    # =====================================================
+
+    return {
+        "status": "success",
+
+        "entities": entities,
+
+        "relations": relations,
+
+        "graph": graph_json(graph),
+
+        "search_results": search_results,
+
+        "bayesian_confidence": confidence,
+
+        "contradictions": contradictions,
+
+        "explanation": explanation,
+
+        "report": {
+            "file": report_file,
+            "message": "Investigation report generated successfully."
+        }
+    }
+
+
+# =========================================================
+# EXCEL CASE REPORT INVESTIGATION
+# =========================================================
+
+@router.post("/investigate/excel")
+async def investigate_excel(
+    file: UploadFile = File(...),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
+):
+
+    # -----------------------------------------------------
+    # AUTHENTICATION
+    # -----------------------------------------------------
+
+    if not credentials:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Please login before uploading a case report."
+        )
+
+    token = credentials.credentials
+
+    username = get_session_user(token)
+
+    if not username:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid session. Please login again."
+        )
+
+    # -----------------------------------------------------
+    # FILE VALIDATION
+    # -----------------------------------------------------
+
+    if not file.filename:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload an Excel case report."
+        )
+
+    filename = file.filename.lower()
+
+    if not filename.endswith((".xlsx", ".xls")):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Only Excel files (.xlsx or .xls) are supported."
+        )
+
+    # -----------------------------------------------------
+    # READ EXCEL FILE
+    # -----------------------------------------------------
+
+    try:
+
+        file_content = await file.read()
+
+        if not file_content:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded Excel file is empty."
+            )
+
+        excel_file = io.BytesIO(
+            file_content
+        )
+
+        # Select engine based on extension
+        if filename.endswith(".xlsx"):
+
+            dataframe = pd.read_excel(
+                excel_file,
+                engine="openpyxl"
+            )
+
+        else:
+
+            dataframe = pd.read_excel(
+                excel_file,
+                engine="xlrd"
+            )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to read Excel file: {str(e)}"
+        )
+
+    # -----------------------------------------------------
+    # VALIDATE DATA
+    # -----------------------------------------------------
+
+    if dataframe.empty:
+
+        raise HTTPException(
+            status_code=400,
+            detail="The Excel case report is empty."
+        )
+
+    # -----------------------------------------------------
+    # REMOVE COMPLETELY EMPTY ROWS
+    # -----------------------------------------------------
+
+    dataframe = dataframe.dropna(
+        how="all"
+    )
+
+    # -----------------------------------------------------
+    # REMOVE COMPLETELY EMPTY COLUMNS
+    # -----------------------------------------------------
+
+    dataframe = dataframe.dropna(
+        axis=1,
+        how="all"
+    )
+
+    if dataframe.empty:
+
+        raise HTTPException(
+            status_code=400,
+            detail="The Excel case report contains no usable data."
+        )
+
+    # -----------------------------------------------------
+    # LIMIT LARGE FILES
+    # -----------------------------------------------------
+
+    MAX_ROWS = 5000
+
+    original_rows = len(dataframe)
+
+    rows_limited = False
+
+    if original_rows > MAX_ROWS:
+
+        dataframe = dataframe.head(
+            MAX_ROWS
+        )
+
+        rows_limited = True
+
+    # -----------------------------------------------------
+    # CONVERT EXCEL DATA TO INVESTIGATION TEXT
+    # -----------------------------------------------------
+
+    case_parts = []
+
+    for _, row in dataframe.iterrows():
+
+        row_values = []
+
+        for column, value in row.items():
+
+            if pd.notna(value):
+
+                row_values.append(
+                    f"{column}: {value}"
+                )
+
+        if row_values:
+
+            case_parts.append(
+                " | ".join(row_values)
+            )
+
+    case_text = "\n".join(
+        case_parts
+    )
+
+    if not case_text.strip():
+
+        raise HTTPException(
+            status_code=400,
+            detail="No readable case information was found in the Excel file."
+        )
+
+    # =====================================================
+    # NLP - ENTITY EXTRACTION
+    # =====================================================
+
+    try:
+
+        entities = extract_entities(
+            case_text
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Entity extraction failed: {str(e)}"
+        )
+
+    # =====================================================
+    # NLP - RELATION EXTRACTION
+    # =====================================================
+
+    try:
+
+        relations = extract_relations(
+            case_text
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Relation extraction failed: {str(e)}"
+        )
+
+    # =====================================================
+    # GRAPH CONSTRUCTION
+    # =====================================================
+
+    try:
+
+        graph = build_graph(
+            relations
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Graph construction failed: {str(e)}"
+        )
+
+    # -----------------------------------------------------
+    # FIND GRAPH NODES
+    # -----------------------------------------------------
+
+    nodes = []
+
+    if hasattr(graph, "nodes"):
+
+        try:
+
+            nodes = list(
+                graph.nodes
+            )
+
+        except Exception:
+
+            nodes = []
+
+    if len(nodes) >= 2:
+
+        start = nodes[0]
+        target = nodes[-1]
+
+    else:
+
+        start = ""
+        target = ""
+
+    # =====================================================
+    # SEARCH - BFS
+    # =====================================================
+
+    try:
+
+        bfs = bfs_search(
+            graph,
+            start,
+            target
+        )
+
+    except Exception:
+
+        bfs = []
+
+    # =====================================================
+    # SEARCH - DFS
+    # =====================================================
+
+    try:
+
+        dfs = dfs_search(
+            graph,
+            start,
+            target
+        )
+
+    except Exception:
+
+        dfs = []
+
+    # =====================================================
+    # SEARCH - A*
+    # =====================================================
+
+    try:
+
+        astar = astar_search(
+            graph,
+            start,
+            target
+        )
+
+    except Exception:
+
+        astar = []
+
+    search_results = {
+        "BFS": bfs,
+        "DFS": dfs,
+        "A*": astar
+    }
+
+    # =====================================================
+    # CSP - CONTRADICTION DETECTION
+    # =====================================================
+
+    try:
+
+        contradictions = detect_contradictions(
+            case_text,
+            relations
+        )
+
+    except Exception as e:
+
+        contradictions = [
+            f"Contradiction analysis failed: {str(e)}"
+        ]
+
+    # =====================================================
+    # BAYESIAN CONFIDENCE
+    # =====================================================
+
+    try:
+
+        confidence = calculate_confidence(
+            entities,
+            relations,
+            contradictions
+        )
+
+    except Exception:
+
+        confidence = 0
+
+    # =====================================================
+    # CONFIDENCE EXPLANATION
+    # =====================================================
+
+    try:
+
+        explanation = explain_confidence(
+            entities,
+            relations,
+            contradictions
+        )
+
+    except Exception as e:
+
+        explanation = (
+            f"Confidence explanation unavailable: {str(e)}"
+        )
+
+    # =====================================================
+    # PDF REPORT GENERATION
+    # =====================================================
+
+    try:
+
+        report_file = generate_report(
+            case_text,
+            entities,
+            relations,
+            search_results,
+            confidence,
+            contradictions
+        )
+
+    except Exception as e:
+
+        report_file = None
+
+        explanation = (
+            f"{explanation}\n"
+            f"PDF report generation failed: {str(e)}"
+        )
+
+    # =====================================================
+    # ACTIVITY LOG
+    # =====================================================
+
+    try:
+
+        log_activity(
+            username,
+            "EXCEL_INVESTIGATION",
+            f"Excel case report analyzed: {file.filename}"
+        )
+
+    except Exception:
+
+        pass
+
+    # =====================================================
+    # FINAL RESPONSE
+    # =====================================================
+
     return {
 
         "status": "success",
+
+        "message": "Excel case report analyzed successfully.",
+
+        "filename": file.filename,
+
+        "original_rows": original_rows,
+
+        "rows_processed": len(dataframe),
+
+        "rows_limited": rows_limited,
+
+        "columns_detected": [
+            str(column)
+            for column in dataframe.columns
+        ],
 
         "entities": entities,
 
@@ -480,34 +1061,36 @@ def investigate(
 
             "file": report_file,
 
-            "message":
-            "Investigation report generated successfully."
-
+            "message": (
+                "Investigation PDF report generated successfully."
+                if report_file
+                else "PDF report could not be generated."
+            )
         }
-
     }
 
 
 # =========================================================
-# ACTIVITY LOG
+# ACTIVITY LOGS
 # =========================================================
 
 @router.get("/auth/logs")
 def get_logs(
-    authorization: str | None = Header(default=None)
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ):
 
-    if not authorization:
+    # -----------------------------------------------------
+    # Authentication
+    # -----------------------------------------------------
+
+    if not credentials:
 
         raise HTTPException(
             status_code=401,
             detail="Authentication required."
         )
 
-    token = authorization.replace(
-        "Bearer ",
-        ""
-    )
+    token = credentials.credentials
 
     username = get_session_user(token)
 
@@ -518,11 +1101,19 @@ def get_logs(
             detail="Invalid session."
         )
 
+    # -----------------------------------------------------
+    # Database connection
+    # -----------------------------------------------------
+
     from backend.database.database import get_connection
 
     connection = get_connection()
 
     cursor = connection.cursor()
+
+    # -----------------------------------------------------
+    # Get logs
+    # -----------------------------------------------------
 
     cursor.execute(
         """
@@ -539,19 +1130,17 @@ def get_logs(
     )
 
     logs = [
-
         dict(row)
-
         for row in cursor.fetchall()
-
     ]
 
     connection.close()
 
+    # -----------------------------------------------------
+    # Return logs
+    # -----------------------------------------------------
+
     return {
-
         "status": "success",
-
         "logs": logs
-
     }
