@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AI Crime Investigator</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+    <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+
+</head>
+
+
+<body>
+
+<div class="app">
+
+
+    <!-- ================================================= -->
+    <!-- SIDEBAR -->
+    <!-- ================================================= -->
+
+    <aside class="sidebar">
+
+        <div class="sidebar-brand">
+
+            <div class="brand-mini">
+                🛡
+            </div>
+
+            <div>
+
+                <strong>
+                    AI Crime
+                </strong>
+
+                <span>
+                    Investigator
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div class="sidebar-section">
+
+            <span class="sidebar-title">
+                WORKSPACE
+            </span>
+
+
+            <button
+                class="nav-item active"
+                onclick="showPage('dashboard', this)"
+            >
+                <span>▦</span>
+                Dashboard
+            </button>
+
+
+            <button
+                class="nav-item"
+                onclick="showPage('investigation', this)"
+            >
+                <span>⌕</span>
+                New Investigation
+            </button>
+
+
+            <button
+                class="nav-item"
+                onclick="showPage('activity', this)"
+            >
+                <span>◷</span>
+                Audit Logs
+            </button>
+
+        </div>
+
+
+        <div class="sidebar-section">
+
+            <span class="sidebar-title">
+                SYSTEM
+            </span>
+
+
+            <button
+                class="nav-item"
+                onclick="showPage('profile', this)"
+            >
+                <span>◯</span>
+                Profile
+            </button>
+
+        </div>
+
+
+        <div class="sidebar-bottom">
+
+            <div class="user-mini">
+
+                <div
+                    class="avatar"
+                    id="sidebarAvatar"
+                >
+                    I
+                </div>
+
+                <div class="user-info">
+
+                    <strong id="sidebarUsername">
+                        Investigator
+                    </strong>
+
+                    <span>
+                        Investigator
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="logout-button"
+                onclick="logout()"
+            >
+                ↪ Logout
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- ================================================= -->
+    <!-- MAIN -->
+    <!-- ================================================= -->
+
+    <main class="main">
+
+
+        <!-- TOPBAR -->
+
+        <header class="topbar">
+
+            <div>
+
+                <div class="breadcrumb">
+                    SECURITY OPERATIONS
+                    <span>/</span>
+                    INVESTIGATION
+                </div>
+
+                <h2 id="pageTitle">
+                    Investigation Dashboard
+                </h2>
+
+            </div>
+
+
+            <div class="topbar-right">
+
+                <div class="status-indicator">
+
+                    <span class="status-dot"></span>
+
+                    System Online
+
+                </div>
+
+
+                <div class="top-user">
+
+                    <div
+                        class="avatar small"
+                        id="topAvatar"
+                    >
+                        I
+                    </div>
+
+                    <span id="topUsername">
+                        Investigator
+                    </span>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- ================================================= -->
+        <!-- DASHBOARD -->
+        <!-- ================================================= -->
+
+        <section
+            id="dashboardPage"
+            class="page active-page"
+        >
+
+            <div class="welcome">
+
+                <div>
+
+                    <span class="eyebrow">
+                        INVESTIGATION CENTER
+                    </span>
+
+                    <h1>
+                        Welcome back,
+                        <span id="welcomeName">
+                            Investigator
+                        </span>
+                    </h1>
+
+                    <p>
+                        Monitor investigations, evidence,
+                        AI reasoning and security activity.
+                    </p>
+
+                </div>
+
+
+                <button
+                    class="primary-button"
+                    onclick="openInvestigation()"
+                >
+                    + New Investigation
+                </button>
+
+            </div>
+
+
+            <!-- STAT CARDS -->
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+
+                    <div class="stat-icon blue">
+                        ◫
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Investigations
+                        </span>
+
+                        <strong id="caseCount">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon purple">
+                        ◉
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Entities
+                        </span>
+
+                        <strong id="entityCount">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon green">
+                        ✓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            AI Confidence
+                        </span>
+
+                        <strong id="confidenceValue">
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon orange">
+                        ◷
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Audit Events
+                        </span>
+
+                        <strong id="logCount">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- QUICK ACTIONS -->
+
+            <div class="section-header">
+
+                <div>
+
+                    <span class="eyebrow">
+                        QUICK ACCESS
+                    </span>
+
+                    <h3>
+                        Investigation tools
+                    </h3>
+
+                </div>
+
+            </div>
+
+
+            <div class="quick-grid">
+
+                <button
+                    class="quick-card"
+                    onclick="openInvestigation()"
+                >
+
+                    <div class="quick-icon">
+                        🔎
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Analyze New Case
+                        </strong>
+
+                        <span>
+                            Run NLP and AI investigation
+                        </span>
+
+                    </div>
+
+                    <b>→</b>
+
+                </button>
+
+
+                <button
+                    class="quick-card"
+                    onclick="showPage('activity')"
+                >
+
+                    <div class="quick-icon">
+                        📋
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            View Audit Logs
+                        </strong>
+
+                        <span>
+                            Monitor investigator activity
+                        </span>
+
+                    </div>
+
+                    <b>→</b>
+
+                </button>
+
+            </div>
+
+
+            <!-- LAST RESULT -->
+
+            <div
+                id="dashboardResult"
+                class="dashboard-result hidden"
+            >
+
+                <div class="section-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            LAST ANALYSIS
+                        </span>
+
+                        <h3>
+                            Investigation summary
+                        </h3>
+
+                    </div>
+
+                </div>
+
+                <div id="lastSummary"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================================================= -->
+        <!-- INVESTIGATION -->
+        <!-- ================================================= -->
+
+        <section
+            id="investigationPage"
+            class="page"
+        >
+
+            <div class="page-heading">
+
+                <span class="eyebrow">
+                    AI INVESTIGATION
+                </span>
+
+                <h1>
+                    New Investigation
+                </h1>
+
+                <p>
+                    Enter a case description and let the
+                    investigation engine analyze entities,
+                    relationships and evidence.
+                </p>
+
+            </div>
+
+
+            <div class="investigation-layout">
+
+
+                <!-- INPUT -->
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Case information
+                            </h3>
+
+                            <span>
+                                Provide the investigation description
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label>
+                            Case Description
+                        </label>
+
+                        <textarea
+                            id="caseText"
+                            rows="12"
+                            placeholder="Example:
+
+Ravi met Arun near Chennai on Monday.
+Arun was seen with a phone and a knife.
+CCTV camera recorded the vehicle near the location."
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="node-grid">
+
+                        <div class="form-group">
+
+                            <label>
+                                Start Entity
+                            </label>
+
+                            <input
+                                id="startNode"
+                                placeholder="Example: Ravi"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Target Entity
+                            </label>
+
+                            <input
+                                id="targetNode"
+                                placeholder="Example: Arun"
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        class="primary-button analysis-button"
+                        onclick="runInvestigation()"
+                    >
+
+                        <span id="analysisButtonText">
+                            Run AI Investigation
+                        </span>
+
+                    </button>
+
+
+                    <div
+                        id="investigationMessage"
+                        class="message"
+                    ></div>
+
+                </div>
+
+
+                <!-- ANALYSIS STATUS -->
+
+                <div class="panel status-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Analysis Pipeline
+                            </h3>
+
+                            <span>
+                                Investigation engine
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="pipeline">
+
+                        <div class="pipeline-item">
+                            <b>01</b>
+                            <span>NLP Entity Extraction</span>
+                            <i>Ready</i>
+                        </div>
+
+                        <div class="pipeline-line"></div>
+
+                        <div class="pipeline-item">
+                            <b>02</b>
+                            <span>Relation Extraction</span>
+                            <i>Ready</i>
+                        </div>
+
+                        <div class="pipeline-line"></div>
+
+                        <div class="pipeline-item">
+                            <b>03</b>
+                            <span>Knowledge Graph</span>
+                            <i>Ready</i>
+                        </div>
+
+                        <div class="pipeline-line"></div>
+
+                        <div class="pipeline-item">
+                            <b>04</b>
+                            <span>BFS / DFS / A*</span>
+                            <i>Ready</i>
+                        </div>
+
+                        <div class="pipeline-line"></div>
+
+                        <div class="pipeline-item">
+                            <b>05</b>
+                            <span>Bayesian + CSP</span>
+                            <i>Ready</i>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- RESULTS -->
+
+            <div
+                id="resultsArea"
+                class="results-area hidden"
+            >
+
+                <div class="result-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            ANALYSIS COMPLETE
+                        </span>
+
+                        <h2>
+                            Investigation Results
+                        </h2>
+
+                    </div>
+
+                    <button
+                        class="secondary-button"
+                        onclick="openReport()"
+                    >
+                        📄 Open PDF Report
+                    </button>
+
+                </div>
+
+
+                <!-- RESULT CARDS -->
+
+                <div class="result-grid">
+
+                    <div class="result-card">
+
+                        <span>
+                            Entities
+                        </span>
+
+                        <strong id="resultEntityCount">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div class="result-card">
+
+                        <span>
+                            Relationships
+                        </span>
+
+                        <strong id="resultRelationCount">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div class="result-card">
+
+                        <span>
+                            Confidence
+                        </span>
+
+                        <strong id="resultConfidence">
+                            —
+                        </strong>
+
+                    </div>
+
+
+                    <div class="result-card">
+
+                        <span>
+                            Contradictions
+                        </span>
+
+                        <strong id="resultContradictions">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <!-- GRAPH -->
+
+                <div class="panel graph-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Investigation Knowledge Graph
+                            </h3>
+
+                            <span>
+                                Entity relationship visualization
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div id="cy"></div>
+
+                </div>
+
+
+                <!-- TWO COLUMNS -->
+
+                <div class="result-two-column">
+
+
+                    <!-- ENTITIES -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Extracted Entities
+                                </h3>
+
+                            </div>
+
+                        </div>
+
+                        <div
+                            id="entitiesList"
+                            class="entity-list"
+                        ></div>
+
+                    </div>
+
+
+                    <!-- RELATIONS -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Relationships
+                                </h3>
+
+                            </div>
+
+                        </div>
+
+                        <div
+                            id="relationsList"
+                            class="relation-list"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- SEARCH -->
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Search Algorithms
+                            </h3>
+
+                            <span>
+                                Graph path analysis
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="algorithm-grid">
+
+                        <div class="algorithm-card">
+
+                            <span>BFS</span>
+
+                            <p id="bfsResult">No path</p>
+
+                        </div>
+
+                        <div class="algorithm-card">
+
+                            <span>DFS</span>
+
+                            <p id="dfsResult">No path</p>
+
+                        </div>
+
+                        <div class="algorithm-card">
+
+                            <span>A*</span>
+
+                            <p id="astarResult">No path</p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- AI REASONING -->
+
+                <div class="result-two-column">
+
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Bayesian Confidence
+                                </h3>
+
+                            </div>
+
+                        </div>
+
+                        <div class="confidence-box">
+
+                            <div
+                                id="confidenceCircle"
+                                class="confidence-circle"
+                            >
+                                —
+                            </div>
+
+                            <p id="confidenceExplanation">
+                                Run an investigation to calculate confidence.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    CSP Contradictions
+                                </h3>
+
+                            </div>
+
+                        </div>
+
+                        <div
+                            id="contradictionsList"
+                            class="contradiction-list"
+                        >
+                            No contradictions detected.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- EXPLAINABLE AI -->
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Explainable AI
+                            </h3>
+
+                            <span>
+                                Why the system produced this result
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                    <div
+                        id="explanationList"
+                        class="explanation-list"
+                    ></div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================================================= -->
+        <!-- AUDIT LOGS -->
+        <!-- ================================================= -->
+
+        <section
+            id="activityPage"
+            class="page"
+        >
+
+            <div class="page-heading">
+
+                <span class="eyebrow">
+                    SECURITY AUDIT
+                </span>
+
+                <h1>
+                    Audit Logs
+                </h1>
+
+                <p>
+                    Track authentication and investigation activities.
+                </p>
+
+            </div>
+
+
+            <div class="panel">
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    TIME
+                                </th>
+
+                                <th>
+                                    ACTION
+                                </th>
+
+                                <th>
+                                    CASE
+                                </th>
+
+                                <th>
+                                    DESCRIPTION
+                                </th>
+
+                                <th>
+                                    STATUS
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="auditTable">
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================================================= -->
+        <!-- PROFILE -->
+        <!-- ================================================= -->
+
+        <section
+            id="profilePage"
+            class="page"
+        >
+
+            <div class="page-heading">
+
+                <span class="eyebrow">
+                    ACCOUNT
+                </span>
+
+                <h1>
+                    Investigator Profile
+                </h1>
+
+            </div>
+
+
+            <div class="profile-card panel">
+
+                <div
+                    class="profile-avatar"
+                    id="profileAvatar"
+                >
+                    I
+                </div>
+
+
+                <div class="profile-details">
+
+                    <span>
+                        INVESTIGATOR
+                    </span>
+
+                    <h2 id="profileUsername">
+                        Investigator
+                    </h2>
+
+                    <p id="profileEmail">
+                        —
+                    </p>
+
+                    <div class="profile-badges">
+
+                        <span>
+                            ✓ Authenticated
+                        </span>
+
+                        <span>
+                            ✓ Audit Enabled
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+</div>
+
+
+<script src="script.js"></script>
+
+</body>
+
+</html>
