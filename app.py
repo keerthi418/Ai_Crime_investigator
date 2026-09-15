@@ -8,8 +8,22 @@ from fastapi.responses import FileResponse
 from backend.api.routes import router
 
 
-Path("reports").mkdir(exist_ok=True)
+# ============================================================
+# DIRECTORIES
+# ============================================================
 
+BASE_DIR = Path(__file__).resolve().parent
+
+REPORTS_DIR = BASE_DIR / "reports"
+FRONTEND_DIR = BASE_DIR / "frontend"
+
+# Create reports folder if it does not exist
+REPORTS_DIR.mkdir(exist_ok=True)
+
+
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
 
 app = FastAPI(
     title="AI Crime Investigator",
@@ -17,6 +31,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+# ============================================================
+# CORS
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,29 +45,89 @@ app.add_middleware(
 )
 
 
+# ============================================================
+# API ROUTES
+# ============================================================
+
 app.include_router(
     router,
     prefix="/api"
 )
 
 
+# ============================================================
+# REPORTS
+# ============================================================
+
 app.mount(
     "/reports",
-    StaticFiles(directory="reports"),
+    StaticFiles(directory=str(REPORTS_DIR)),
     name="reports"
 )
 
 
+# ============================================================
+# FRONTEND STATIC FILES
+# ============================================================
+
+# This makes:
+#
+# /style.css  -> frontend/style.css
+# /script.js  -> frontend/script.js
+# /login.html -> frontend/login.html
+# /index.html -> frontend/index.html
+#
 app.mount(
     "/frontend",
-    StaticFiles(directory="frontend", html=True),
+    StaticFiles(
+        directory=str(FRONTEND_DIR),
+        html=True
+    ),
     name="frontend"
 )
 
 
+# ============================================================
+# ROOT PAGE
+# ============================================================
+
 @app.get("/")
 def root():
-
     return FileResponse(
-        "frontend/index.html"
+        FRONTEND_DIR / "index.html"
+    )
+
+
+# ============================================================
+# FRONTEND CSS
+# ============================================================
+
+@app.get("/style.css")
+def style_css():
+    return FileResponse(
+        FRONTEND_DIR / "style.css",
+        media_type="text/css"
+    )
+
+
+# ============================================================
+# FRONTEND JAVASCRIPT
+# ============================================================
+
+@app.get("/script.js")
+def script_js():
+    return FileResponse(
+        FRONTEND_DIR / "script.js",
+        media_type="application/javascript"
+    )
+
+
+# ============================================================
+# LOGIN PAGE
+# ============================================================
+
+@app.get("/login.html")
+def login_page():
+    return FileResponse(
+        FRONTEND_DIR / "login.html"
     )

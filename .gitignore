@@ -1,9 +1,22 @@
-venv/
+# Python
 __pycache__/
-*/__pycache__/
-*.pyc
-*.pyo
-*.db
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment files
 .env
-.vscode/
+
+# Generated reports
+reports/*.png
 reports/*.pdf
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
