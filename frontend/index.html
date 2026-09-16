@@ -10,33 +10,43 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>AI Crime Investigator</title>
+    <title>
+        AI Crime Investigator
+    </title>
 
     <link
         rel="stylesheet"
         href="style.css"
     >
 
-    <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <!-- Cytoscape -->
+    <script
+        src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js">
+    </script>
 
 </head>
 
 
 <body>
 
-<div class="app">
+<div
+    id="app"
+    class="app"
+>
 
 
-    <!-- ================================================= -->
-    <!-- SIDEBAR -->
-    <!-- ================================================= -->
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
 
     <aside class="sidebar">
 
+        <!-- BRAND -->
+
         <div class="sidebar-brand">
 
-            <div class="brand-mini">
-                🛡
+            <div class="sidebar-logo">
+                🕵️
             </div>
 
             <div>
@@ -54,91 +64,127 @@
         </div>
 
 
-        <div class="sidebar-section">
+        <!-- NAVIGATION -->
 
-            <span class="sidebar-title">
-                WORKSPACE
-            </span>
-
+        <nav class="sidebar-nav">
 
             <button
+                type="button"
                 class="nav-item active"
                 onclick="showPage('dashboard', this)"
             >
-                <span>▦</span>
-                Dashboard
+
+                <span class="nav-icon">
+                    📊
+                </span>
+
+                <span>
+                    Dashboard
+                </span>
+
             </button>
 
 
             <button
+                type="button"
                 class="nav-item"
                 onclick="showPage('investigation', this)"
             >
-                <span>⌕</span>
-                New Investigation
+
+                <span class="nav-icon">
+                    🔎
+                </span>
+
+                <span>
+                    New Investigation
+                </span>
+
             </button>
 
 
             <button
+                type="button"
                 class="nav-item"
                 onclick="showPage('activity', this)"
             >
-                <span>◷</span>
-                Audit Logs
+
+                <span class="nav-icon">
+                    📋
+                </span>
+
+                <span>
+                    Audit Logs
+                </span>
+
             </button>
-
-        </div>
-
-
-        <div class="sidebar-section">
-
-            <span class="sidebar-title">
-                SYSTEM
-            </span>
 
 
             <button
+                type="button"
                 class="nav-item"
                 onclick="showPage('profile', this)"
             >
-                <span>◯</span>
-                Profile
+
+                <span class="nav-icon">
+                    👤
+                </span>
+
+                <span>
+                    Profile
+                </span>
+
             </button>
-
-        </div>
-
-
-        <div class="sidebar-bottom">
-
-            <div class="user-mini">
-
-                <div
-                    class="avatar"
-                    id="sidebarAvatar"
-                >
-                    I
-                </div>
-
-                <div class="user-info">
-
-                    <strong id="sidebarUsername">
-                        Investigator
-                    </strong>
-
-                    <span>
-                        Investigator
-                    </span>
-
-                </div>
-
-            </div>
 
 
             <button
+                type="button"
+                class="nav-item"
+                onclick="showPage('settings', this)"
+            >
+
+                <span class="nav-icon">
+                    ⚙️
+                </span>
+
+                <span>
+                    Settings
+                </span>
+
+            </button>
+
+        </nav>
+
+
+        <!-- SIDEBAR USER -->
+
+        <div class="sidebar-user">
+
+            <div
+                id="sidebarAvatar"
+                class="avatar"
+            >
+                U
+            </div>
+
+            <div class="sidebar-user-info">
+
+                <strong id="sidebarUsername">
+                    Investigator
+                </strong>
+
+                <span>
+                    Investigator
+                </span>
+
+            </div>
+
+            <button
+                type="button"
                 class="logout-button"
                 onclick="logout()"
+                title="Logout"
             >
-                ↪ Logout
+                ⎋
             </button>
 
         </div>
@@ -146,35 +192,33 @@
     </aside>
 
 
-    <!-- ================================================= -->
-    <!-- MAIN -->
-    <!-- ================================================= -->
+    <!-- =====================================================
+         MAIN AREA
+    ====================================================== -->
 
     <main class="main">
 
 
-        <!-- TOPBAR -->
+        <!-- TOP BAR -->
 
         <header class="topbar">
 
-            <div>
+            <div class="topbar-left">
 
-                <div class="breadcrumb">
-                    SECURITY OPERATIONS
-                    <span>/</span>
-                    INVESTIGATION
-                </div>
+                <span class="topbar-label">
+                    AI CRIME INVESTIGATOR
+                </span>
 
-                <h2 id="pageTitle">
+                <h1 id="pageTitle">
                     Investigation Dashboard
-                </h2>
+                </h1>
 
             </div>
 
 
             <div class="topbar-right">
 
-                <div class="status-indicator">
+                <div class="system-status">
 
                     <span class="status-dot"></span>
 
@@ -186,10 +230,10 @@
                 <div class="top-user">
 
                     <div
-                        class="avatar small"
                         id="topAvatar"
+                        class="avatar small"
                     >
-                        I
+                        U
                     </div>
 
                     <span id="topUsername">
@@ -203,39 +247,42 @@
         </header>
 
 
-        <!-- ================================================= -->
-        <!-- DASHBOARD -->
-        <!-- ================================================= -->
+        <!-- =================================================
+             DASHBOARD PAGE
+        ================================================== -->
 
         <section
             id="dashboardPage"
             class="page active-page"
         >
 
-            <div class="welcome">
+            <!-- WELCOME -->
+
+            <div class="page-heading">
 
                 <div>
 
-                    <span class="eyebrow">
+                    <span class="section-label">
                         INVESTIGATION CENTER
                     </span>
 
-                    <h1>
-                        Welcome back,
+                    <h2>
+                        Welcome,
                         <span id="welcomeName">
                             Investigator
                         </span>
-                    </h1>
+                    </h2>
 
                     <p>
-                        Monitor investigations, evidence,
-                        AI reasoning and security activity.
+                        Analyze cases, discover relationships,
+                        and generate intelligent investigation reports.
                     </p>
 
                 </div>
 
 
                 <button
+                    type="button"
                     class="primary-button"
                     onclick="openInvestigation()"
                 >
@@ -245,14 +292,14 @@
             </div>
 
 
-            <!-- STAT CARDS -->
+            <!-- STATISTICS -->
 
-            <div class="stats-grid">
+            <div class="statistics-grid">
 
                 <div class="stat-card">
 
                     <div class="stat-icon blue">
-                        ◫
+                        📁
                     </div>
 
                     <div>
@@ -273,13 +320,13 @@
                 <div class="stat-card">
 
                     <div class="stat-icon purple">
-                        ◉
+                        🧩
                     </div>
 
                     <div>
 
                         <span>
-                            Entities
+                            Entities Detected
                         </span>
 
                         <strong id="entityCount">
@@ -294,7 +341,7 @@
                 <div class="stat-card">
 
                     <div class="stat-icon green">
-                        ✓
+                        🎯
                     </div>
 
                     <div>
@@ -303,7 +350,7 @@
                             AI Confidence
                         </span>
 
-                        <strong id="confidenceValue">
+                        <strong id="resultConfidence">
                             —
                         </strong>
 
@@ -314,17 +361,17 @@
 
                 <div class="stat-card">
 
-                    <div class="stat-icon orange">
-                        ◷
+                    <div class="stat-icon red">
+                        ⚠️
                     </div>
 
                     <div>
 
                         <span>
-                            Audit Events
+                            Contradictions
                         </span>
 
-                        <strong id="logCount">
+                        <strong id="resultContradictions">
                             0
                         </strong>
 
@@ -341,22 +388,23 @@
 
                 <div>
 
-                    <span class="eyebrow">
-                        QUICK ACCESS
-                    </span>
-
                     <h3>
-                        Investigation tools
+                        Quick Actions
                     </h3>
+
+                    <p>
+                        Start your next investigation workflow.
+                    </p>
 
                 </div>
 
             </div>
 
 
-            <div class="quick-grid">
+            <div class="quick-actions">
 
                 <button
+                    type="button"
                     class="quick-card"
                     onclick="openInvestigation()"
                 >
@@ -372,17 +420,16 @@
                         </strong>
 
                         <span>
-                            Run NLP and AI investigation
+                            Extract entities and relationships
                         </span>
 
                     </div>
-
-                    <b>→</b>
 
                 </button>
 
 
                 <button
+                    type="button"
                     class="quick-card"
                     onclick="showPage('activity')"
                 >
@@ -398,12 +445,35 @@
                         </strong>
 
                         <span>
-                            Monitor investigator activity
+                            Review investigation activity
                         </span>
 
                     </div>
 
-                    <b>→</b>
+                </button>
+
+
+                <button
+                    type="button"
+                    class="quick-card"
+                    onclick="showPage('settings')"
+                >
+
+                    <div class="quick-icon">
+                        🔐
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Security Settings
+                        </strong>
+
+                        <span>
+                            Manage password and 2FA
+                        </span>
+
+                    </div>
 
                 </button>
 
@@ -414,139 +484,166 @@
 
             <div
                 id="dashboardResult"
-                class="dashboard-result hidden"
+                class="panel hidden"
             >
 
-                <div class="section-header">
+                <div class="panel-header">
 
                     <div>
 
-                        <span class="eyebrow">
-                            LAST ANALYSIS
-                        </span>
-
                         <h3>
-                            Investigation summary
+                            Latest Investigation
                         </h3>
+
+                        <p>
+                            Most recent analysis summary
+                        </p>
 
                     </div>
 
                 </div>
 
-                <div id="lastSummary"></div>
+
+                <div id="lastSummary">
+
+                    <div class="empty-state">
+                        No investigation completed yet.
+                    </div>
+
+                </div>
 
             </div>
 
         </section>
 
 
-        <!-- ================================================= -->
-        <!-- INVESTIGATION -->
-        <!-- ================================================= -->
+        <!-- =================================================
+             INVESTIGATION PAGE
+        ================================================== -->
 
         <section
             id="investigationPage"
             class="page"
         >
 
+            <!-- PAGE HEADER -->
+
             <div class="page-heading">
 
-                <span class="eyebrow">
-                    AI INVESTIGATION
-                </span>
+                <div>
 
-                <h1>
-                    New Investigation
-                </h1>
+                    <span class="section-label">
+                        AI ANALYSIS WORKSPACE
+                    </span>
 
-                <p>
-                    Enter a case description and let the
-                    investigation engine analyze entities,
-                    relationships and evidence.
-                </p>
+                    <h2>
+                        New Investigation
+                    </h2>
+
+                    <p>
+                        Submit a case description for AI-powered
+                        entity extraction, graph analysis and reasoning.
+                    </p>
+
+                </div>
+
+
+                <!-- INVESTIGATION STATUS -->
+
+                <div
+                    id="investigationStatus"
+                    class="investigation-status ongoing"
+                >
+                    ● INVESTIGATION ONGOING
+                </div>
 
             </div>
 
 
-            <div class="investigation-layout">
+            <!-- CASE INPUT PANEL -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Case Description
+                        </h3>
+
+                        <p>
+                            Enter the available case information below.
+                        </p>
+
+                    </div>
+
+                </div>
 
 
-                <!-- INPUT -->
+                <div class="form-group">
 
-                <div class="panel">
+                    <label for="caseText">
+                        Investigation Evidence
+                    </label>
 
-                    <div class="panel-header">
+                    <textarea
+                        id="caseText"
+                        rows="10"
+                        placeholder="Example: John met Sarah at Chennai Central on Monday. Sarah transferred money to John. CCTV footage showed John near the station..."
+                    ></textarea>
 
-                        <div>
+                </div>
 
-                            <h3>
-                                Case information
-                            </h3>
 
-                            <span>
-                                Provide the investigation description
-                            </span>
+                <!-- GRAPH SEARCH INPUT -->
 
-                        </div>
+                <div class="two-column">
+
+                    <div class="form-group">
+
+                        <label for="startNode">
+                            Start Entity
+                        </label>
+
+                        <input
+                            type="text"
+                            id="startNode"
+                            placeholder="Example: John"
+                        >
 
                     </div>
 
 
                     <div class="form-group">
 
-                        <label>
-                            Case Description
+                        <label for="targetNode">
+                            Target Entity
                         </label>
 
-                        <textarea
-                            id="caseText"
-                            rows="12"
-                            placeholder="Example:
-
-Ravi met Arun near Chennai on Monday.
-Arun was seen with a phone and a knife.
-CCTV camera recorded the vehicle near the location."
-                        ></textarea>
+                        <input
+                            type="text"
+                            id="targetNode"
+                            placeholder="Example: Sarah"
+                        >
 
                     </div>
 
-
-                    <div class="node-grid">
-
-                        <div class="form-group">
-
-                            <label>
-                                Start Entity
-                            </label>
-
-                            <input
-                                id="startNode"
-                                placeholder="Example: Ravi"
-                            >
-
-                        </div>
+                </div>
 
 
-                        <div class="form-group">
+                <!-- ACTION -->
 
-                            <label>
-                                Target Entity
-                            </label>
-
-                            <input
-                                id="targetNode"
-                                placeholder="Example: Arun"
-                            >
-
-                        </div>
-
-                    </div>
-
+                <div class="investigation-actions">
 
                     <button
-                        class="primary-button analysis-button"
+                        id="runAnalysisButton"
+                        type="button"
+                        class="primary-button"
                         onclick="runInvestigation()"
                     >
+
+                        🧠
 
                         <span id="analysisButtonText">
                             Run AI Investigation
@@ -554,75 +651,121 @@ CCTV camera recorded the vehicle near the location."
 
                     </button>
 
+                </div>
 
-                    <div
-                        id="investigationMessage"
-                        class="message"
-                    ></div>
+
+                <div
+                    id="investigationMessage"
+                    class="message"
+                ></div>
+
+            </div>
+
+
+            <!-- =================================================
+                 PIPELINE
+            ================================================== -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Investigation Pipeline
+                        </h3>
+
+                        <p>
+                            Processing stages used by the investigator.
+                        </p>
+
+                    </div>
 
                 </div>
 
 
-                <!-- ANALYSIS STATUS -->
+                <div class="pipeline">
 
-                <div class="panel status-panel">
+                    <div class="pipeline-step">
 
-                    <div class="panel-header">
-
-                        <div>
-
-                            <h3>
-                                Analysis Pipeline
-                            </h3>
-
-                            <span>
-                                Investigation engine
-                            </span>
-
+                        <div class="pipeline-number">
+                            01
                         </div>
+
+                        <strong>
+                            Text Processing
+                        </strong>
+
+                        <span>
+                            Clean & tokenize evidence
+                        </span>
 
                     </div>
 
 
-                    <div class="pipeline">
+                    <div class="pipeline-arrow">
+                        →
+                    </div>
 
-                        <div class="pipeline-item">
-                            <b>01</b>
-                            <span>NLP Entity Extraction</span>
-                            <i>Ready</i>
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            02
                         </div>
 
-                        <div class="pipeline-line"></div>
+                        <strong>
+                            NLP Extraction
+                        </strong>
 
-                        <div class="pipeline-item">
-                            <b>02</b>
-                            <span>Relation Extraction</span>
-                            <i>Ready</i>
+                        <span>
+                            Detect entities
+                        </span>
+
+                    </div>
+
+
+                    <div class="pipeline-arrow">
+                        →
+                    </div>
+
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            03
                         </div>
 
-                        <div class="pipeline-line"></div>
+                        <strong>
+                            Relationship Analysis
+                        </strong>
 
-                        <div class="pipeline-item">
-                            <b>03</b>
-                            <span>Knowledge Graph</span>
-                            <i>Ready</i>
+                        <span>
+                            Connect evidence
+                        </span>
+
+                    </div>
+
+
+                    <div class="pipeline-arrow">
+                        →
+                    </div>
+
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            04
                         </div>
 
-                        <div class="pipeline-line"></div>
+                        <strong>
+                            AI Reasoning
+                        </strong>
 
-                        <div class="pipeline-item">
-                            <b>04</b>
-                            <span>BFS / DFS / A*</span>
-                            <i>Ready</i>
-                        </div>
-
-                        <div class="pipeline-line"></div>
-
-                        <div class="pipeline-item">
-                            <b>05</b>
-                            <span>Bayesian + CSP</span>
-                            <i>Ready</i>
-                        </div>
+                        <span>
+                            Calculate confidence
+                        </span>
 
                     </div>
 
@@ -631,96 +774,111 @@ CCTV camera recorded the vehicle near the location."
             </div>
 
 
-            <!-- RESULTS -->
+            <!-- =================================================
+                 RESULTS
+            ================================================== -->
 
             <div
                 id="resultsArea"
-                class="results-area hidden"
+                class="hidden"
             >
 
-                <div class="result-header">
 
-                    <div>
+                <!-- RESULT STATISTICS -->
 
-                        <span class="eyebrow">
-                            ANALYSIS COMPLETE
-                        </span>
+                <div class="statistics-grid result-stats">
 
-                        <h2>
-                            Investigation Results
-                        </h2>
+                    <div class="stat-card">
+
+                        <div class="stat-icon blue">
+                            🧩
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Entities
+                            </span>
+
+                            <strong id="resultEntityCount">
+                                0
+                            </strong>
+
+                        </div>
 
                     </div>
 
-                    <button
-                        class="secondary-button"
-                        onclick="openReport()"
-                    >
-                        📄 Open PDF Report
-                    </button>
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon purple">
+                            🔗
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Relationships
+                            </span>
+
+                            <strong id="resultRelationCount">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon green">
+                            🎯
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Confidence
+                            </span>
+
+                            <strong>
+                                <span id="resultConfidence">
+                                    —
+                                </span>
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon red">
+                            ⚠️
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Contradictions
+                            </span>
+
+                            <strong id="resultContradictions">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
 
                 </div>
 
 
-                <!-- RESULT CARDS -->
-
-                <div class="result-grid">
-
-                    <div class="result-card">
-
-                        <span>
-                            Entities
-                        </span>
-
-                        <strong id="resultEntityCount">
-                            0
-                        </strong>
-
-                    </div>
-
-
-                    <div class="result-card">
-
-                        <span>
-                            Relationships
-                        </span>
-
-                        <strong id="resultRelationCount">
-                            0
-                        </strong>
-
-                    </div>
-
-
-                    <div class="result-card">
-
-                        <span>
-                            Confidence
-                        </span>
-
-                        <strong id="resultConfidence">
-                            —
-                        </strong>
-
-                    </div>
-
-
-                    <div class="result-card">
-
-                        <span>
-                            Contradictions
-                        </span>
-
-                        <strong id="resultContradictions">
-                            0
-                        </strong>
-
-                    </div>
-
-                </div>
-
-
-                <!-- GRAPH -->
+                <!-- =================================================
+                     KNOWLEDGE GRAPH
+                ================================================== -->
 
                 <div class="panel graph-panel">
 
@@ -729,25 +887,76 @@ CCTV camera recorded the vehicle near the location."
                         <div>
 
                             <h3>
-                                Investigation Knowledge Graph
+                                Knowledge Graph
                             </h3>
 
-                            <span>
-                                Entity relationship visualization
-                            </span>
+                            <p>
+                                Visual representation of entities
+                                and their relationships.
+                            </p>
+
+                        </div>
+
+
+                        <!-- GRAPH CONTROLS -->
+
+                        <div class="graph-controls">
+
+                            <button
+                                type="button"
+                                onclick="zoomGraphIn()"
+                                title="Zoom In"
+                            >
+                                +
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="zoomGraphOut()"
+                                title="Zoom Out"
+                            >
+                                −
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="fitGraph()"
+                            >
+                                Fit
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="resetGraph()"
+                            >
+                                Reset
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="clearGraphPath()"
+                            >
+                                Clear Path
+                            </button>
 
                         </div>
 
                     </div>
 
-                    <div id="cy"></div>
+
+                    <div
+                        id="cy"
+                        class="cy"
+                    ></div>
 
                 </div>
 
 
-                <!-- TWO COLUMNS -->
+                <!-- =================================================
+                     ENTITY + RELATIONSHIP
+                ================================================== -->
 
-                <div class="result-two-column">
+                <div class="two-column">
 
 
                     <!-- ENTITIES -->
@@ -759,17 +968,28 @@ CCTV camera recorded the vehicle near the location."
                             <div>
 
                                 <h3>
-                                    Extracted Entities
+                                    Detected Entities
                                 </h3>
+
+                                <p>
+                                    People, locations, dates and evidence.
+                                </p>
 
                             </div>
 
                         </div>
 
+
                         <div
                             id="entitiesList"
-                            class="entity-list"
-                        ></div>
+                            class="entities-list"
+                        >
+
+                            <span>
+                                No entities detected.
+                            </span>
+
+                        </div>
 
                     </div>
 
@@ -786,21 +1006,34 @@ CCTV camera recorded the vehicle near the location."
                                     Relationships
                                 </h3>
 
+                                <p>
+                                    Connections extracted from the case.
+                                </p>
+
                             </div>
 
                         </div>
 
+
                         <div
                             id="relationsList"
-                            class="relation-list"
-                        ></div>
+                            class="relations-list"
+                        >
+
+                            <span>
+                                No relationships detected.
+                            </span>
+
+                        </div>
 
                     </div>
 
                 </div>
 
 
-                <!-- SEARCH -->
+                <!-- =================================================
+                     SEARCH ALGORITHMS
+                ================================================== -->
 
                 <div class="panel">
 
@@ -809,40 +1042,114 @@ CCTV camera recorded the vehicle near the location."
                         <div>
 
                             <h3>
-                                Search Algorithms
+                                Graph Search Algorithms
                             </h3>
 
-                            <span>
-                                Graph path analysis
-                            </span>
+                            <p>
+                                Find a relationship path between
+                                the selected entities.
+                            </p>
 
                         </div>
 
                     </div>
 
-                    <div class="algorithm-grid">
 
-                        <div class="algorithm-card">
+                    <div class="algorithms-grid">
 
-                            <span>BFS</span>
 
-                            <p id="bfsResult">No path</p>
+                        <!-- BFS -->
+
+                        <div
+                            class="algorithm-card"
+                            onclick="runSelectedAlgorithm('BFS')"
+                            role="button"
+                            tabindex="0"
+                        >
+
+                            <div class="algorithm-icon">
+                                🔵
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    Breadth-First Search
+                                </strong>
+
+                                <span>
+                                    BFS
+                                </span>
+
+                            </div>
+
+                            <p id="bfsResult">
+                                No path found
+                            </p>
 
                         </div>
 
-                        <div class="algorithm-card">
 
-                            <span>DFS</span>
+                        <!-- DFS -->
 
-                            <p id="dfsResult">No path</p>
+                        <div
+                            class="algorithm-card"
+                            onclick="runSelectedAlgorithm('DFS')"
+                            role="button"
+                            tabindex="0"
+                        >
+
+                            <div class="algorithm-icon">
+                                🟣
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    Depth-First Search
+                                </strong>
+
+                                <span>
+                                    DFS
+                                </span>
+
+                            </div>
+
+                            <p id="dfsResult">
+                                No path found
+                            </p>
 
                         </div>
 
-                        <div class="algorithm-card">
 
-                            <span>A*</span>
+                        <!-- A STAR -->
 
-                            <p id="astarResult">No path</p>
+                        <div
+                            class="algorithm-card"
+                            onclick="runSelectedAlgorithm('A*')"
+                            role="button"
+                            tabindex="0"
+                        >
+
+                            <div class="algorithm-icon">
+                                🟢
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    A* Search
+                                </strong>
+
+                                <span>
+                                    A*
+                                </span>
+
+                            </div>
+
+                            <p id="astarResult">
+                                No path found
+                            </p>
 
                         </div>
 
@@ -851,9 +1158,11 @@ CCTV camera recorded the vehicle near the location."
                 </div>
 
 
-                <!-- AI REASONING -->
+                <!-- =================================================
+                     CONFIDENCE
+                ================================================== -->
 
-                <div class="result-two-column">
+                <div class="two-column">
 
 
                     <div class="panel">
@@ -866,27 +1175,47 @@ CCTV camera recorded the vehicle near the location."
                                     Bayesian Confidence
                                 </h3>
 
+                                <p>
+                                    AI confidence in the investigation findings.
+                                </p>
+
                             </div>
 
                         </div>
 
-                        <div class="confidence-box">
+
+                        <div class="confidence-container">
 
                             <div
                                 id="confidenceCircle"
                                 class="confidence-circle"
                             >
-                                —
+
+                                <span id="confidenceValue">
+                                    —
+                                </span>
+
                             </div>
 
-                            <p id="confidenceExplanation">
-                                Run an investigation to calculate confidence.
-                            </p>
+
+                            <div>
+
+                                <h4>
+                                    Confidence Assessment
+                                </h4>
+
+                                <p id="confidenceExplanation">
+                                    Waiting for investigation results.
+                                </p>
+
+                            </div>
 
                         </div>
 
                     </div>
 
+
+                    <!-- CONTRADICTIONS -->
 
                     <div class="panel">
 
@@ -895,18 +1224,24 @@ CCTV camera recorded the vehicle near the location."
                             <div>
 
                                 <h3>
-                                    CSP Contradictions
+                                    Contradictions
                                 </h3>
+
+                                <p>
+                                    Conflicting evidence detected by the system.
+                                </p>
 
                             </div>
 
                         </div>
 
-                        <div
-                            id="contradictionsList"
-                            class="contradiction-list"
-                        >
-                            No contradictions detected.
+
+                        <div id="contradictionsList">
+
+                            <div class="empty-state">
+                                No contradictions detected.
+                            </div>
+
                         </div>
 
                     </div>
@@ -914,7 +1249,9 @@ CCTV camera recorded the vehicle near the location."
                 </div>
 
 
-                <!-- EXPLAINABLE AI -->
+                <!-- =================================================
+                     AI EXPLANATION
+                ================================================== -->
 
                 <div class="panel">
 
@@ -923,21 +1260,69 @@ CCTV camera recorded the vehicle near the location."
                         <div>
 
                             <h3>
-                                Explainable AI
+                                AI Investigation Explanation
                             </h3>
 
-                            <span>
-                                Why the system produced this result
-                            </span>
+                            <p>
+                                Reasoning generated from the extracted evidence.
+                            </p>
 
                         </div>
 
                     </div>
 
-                    <div
-                        id="explanationList"
-                        class="explanation-list"
-                    ></div>
+
+                    <div id="explanationList">
+
+                        <div class="empty-state">
+                            No explanation available.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     REPORT ACTIONS
+                ================================================== -->
+
+                <div class="panel report-panel">
+
+                    <div>
+
+                        <h3>
+                            Investigation Report
+                        </h3>
+
+                        <p>
+                            Generate and review the professional
+                            investigation report.
+                        </p>
+
+                    </div>
+
+
+                    <div class="investigation-actions">
+
+                        <button
+                            type="button"
+                            class="secondary-button"
+                            onclick="openReport()"
+                        >
+                            📄 Open PDF Report
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="primary-button"
+                            onclick="downloadReport()"
+                        >
+                            ⬇ Download Report
+                        </button>
+
+                    </div>
 
                 </div>
 
@@ -946,9 +1331,9 @@ CCTV camera recorded the vehicle near the location."
         </section>
 
 
-        <!-- ================================================= -->
-        <!-- AUDIT LOGS -->
-        <!-- ================================================= -->
+        <!-- =================================================
+             AUDIT LOGS PAGE
+        ================================================== -->
 
         <section
             id="activityPage"
@@ -957,17 +1342,30 @@ CCTV camera recorded the vehicle near the location."
 
             <div class="page-heading">
 
-                <span class="eyebrow">
-                    SECURITY AUDIT
-                </span>
+                <div>
 
-                <h1>
-                    Audit Logs
-                </h1>
+                    <span class="section-label">
+                        SECURITY MONITORING
+                    </span>
 
-                <p>
-                    Track authentication and investigation activities.
-                </p>
+                    <h2>
+                        Audit Logs
+                    </h2>
+
+                    <p>
+                        Review authentication and investigation activity.
+                    </p>
+
+                </div>
+
+
+                <div class="stat-badge">
+                    <strong id="logCount">
+                        0
+                    </strong>
+
+                    Events
+                </div>
 
             </div>
 
@@ -976,37 +1374,46 @@ CCTV camera recorded the vehicle near the location."
 
                 <div class="table-wrapper">
 
-                    <table>
+                    <table class="data-table">
 
                         <thead>
 
                             <tr>
 
                                 <th>
-                                    TIME
+                                    Date & Time
                                 </th>
 
                                 <th>
-                                    ACTION
+                                    Action
                                 </th>
 
                                 <th>
-                                    CASE
+                                    User
                                 </th>
 
                                 <th>
-                                    DESCRIPTION
+                                    Details
                                 </th>
 
                                 <th>
-                                    STATUS
+                                    Status
                                 </th>
 
                             </tr>
 
                         </thead>
 
+
                         <tbody id="auditTable">
+
+                            <tr>
+
+                                <td colspan="5">
+                                    Loading audit events...
+                                </td>
+
+                            </tr>
 
                         </tbody>
 
@@ -1019,9 +1426,9 @@ CCTV camera recorded the vehicle near the location."
         </section>
 
 
-        <!-- ================================================= -->
-        <!-- PROFILE -->
-        <!-- ================================================= -->
+        <!-- =================================================
+             PROFILE PAGE
+        ================================================== -->
 
         <section
             id="profilePage"
@@ -1030,52 +1437,53 @@ CCTV camera recorded the vehicle near the location."
 
             <div class="page-heading">
 
-                <span class="eyebrow">
-                    ACCOUNT
-                </span>
+                <div>
 
-                <h1>
-                    Investigator Profile
-                </h1>
+                    <span class="section-label">
+                        ACCOUNT
+                    </span>
+
+                    <h2>
+                        Investigator Profile
+                    </h2>
+
+                    <p>
+                        Your investigator account information.
+                    </p>
+
+                </div>
 
             </div>
 
 
-            <div class="profile-card panel">
+            <div class="profile-card">
 
                 <div
-                    class="profile-avatar"
                     id="profileAvatar"
+                    class="profile-avatar"
                 >
-                    I
+                    U
                 </div>
 
 
-                <div class="profile-details">
+                <div class="profile-info">
 
-                    <span>
-                        INVESTIGATOR
+                    <span class="profile-label">
+                        Username
                     </span>
 
-                    <h2 id="profileUsername">
+                    <h3 id="profileUsername">
                         Investigator
-                    </h2>
+                    </h3>
+
+
+                    <span class="profile-label">
+                        Email
+                    </span>
 
                     <p id="profileEmail">
                         —
                     </p>
-
-                    <div class="profile-badges">
-
-                        <span>
-                            ✓ Authenticated
-                        </span>
-
-                        <span>
-                            ✓ Audit Enabled
-                        </span>
-
-                    </div>
 
                 </div>
 
@@ -1083,6 +1491,490 @@ CCTV camera recorded the vehicle near the location."
 
         </section>
 
+
+        <!-- =================================================
+             SETTINGS PAGE
+        ================================================== -->
+
+        <section
+            id="settingsPage"
+            class="page"
+        >
+
+            <div class="page-heading">
+
+                <div>
+
+                    <span class="section-label">
+                        SECURITY CENTER
+                    </span>
+
+                    <h2>
+                        Account Settings
+                    </h2>
+
+                    <p>
+                        Manage password, authentication and account security.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 CHANGE PASSWORD
+            ================================================== -->
+
+            <div class="settings-card">
+
+                <div class="settings-card-header">
+
+                    <div class="settings-icon">
+                        🔑
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Change Password
+                        </h3>
+
+                        <p>
+                            Update your current account password.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="two-column">
+
+                    <div class="form-group">
+
+                        <label for="currentPassword">
+                            Current Password
+                        </label>
+
+                        <div class="password-wrapper">
+
+                            <input
+                                type="password"
+                                id="currentPassword"
+                                placeholder="Current password"
+                            >
+
+                            <button
+                                type="button"
+                                class="password-toggle"
+                                onclick="togglePassword('currentPassword', this)"
+                            >
+                                Show
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="newPassword">
+                            New Password
+                        </label>
+
+                        <div class="password-wrapper">
+
+                            <input
+                                type="password"
+                                id="newPassword"
+                                placeholder="Minimum 8 characters"
+                            >
+
+                            <button
+                                type="button"
+                                class="password-toggle"
+                                onclick="togglePassword('newPassword', this)"
+                            >
+                                Show
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="confirmPassword">
+                        Confirm New Password
+                    </label>
+
+                    <input
+                        type="password"
+                        id="confirmPassword"
+                        placeholder="Confirm new password"
+                    >
+
+                </div>
+
+
+                <div
+                    id="passwordMessage"
+                    class="message"
+                ></div>
+
+
+                <button
+                    type="button"
+                    class="primary-button"
+                    onclick="changePassword()"
+                >
+                    Update Password
+                </button>
+
+            </div>
+
+
+            <!-- =================================================
+                 TWO FACTOR AUTHENTICATION
+            ================================================== -->
+
+            <div class="settings-card">
+
+                <div class="settings-card-header">
+
+                    <div class="settings-icon">
+                        🛡️
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Two-Factor Authentication
+                        </h3>
+
+                        <p>
+                            Add an additional authentication layer to your account.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- STATUS -->
+
+                <div class="security-box">
+
+                    <div>
+
+                        <span class="profile-label">
+                            Current Status
+                        </span>
+
+                        <strong id="twoFAStatus">
+                            Checking...
+                        </strong>
+
+                    </div>
+
+
+                    <div>
+
+                        <button
+                            id="enable2FAButton"
+                            type="button"
+                            class="primary-button"
+                            onclick="setup2FA()"
+                        >
+                            Setup 2FA
+                        </button>
+
+
+                        <button
+                            id="disable2FAButton"
+                            type="button"
+                            class="danger-button hidden"
+                            onclick="disable2FA()"
+                        >
+                            Disable 2FA
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- SETUP -->
+
+                <div
+                    id="twoFASetup"
+                    class="twoFA-setup hidden"
+                >
+
+                    <h4>
+                        Authenticator Setup
+                    </h4>
+
+                    <p>
+                        Add the following secret to Google Authenticator,
+                        Microsoft Authenticator or another TOTP application.
+                    </p>
+
+
+                    <!-- QR -->
+
+                    <div class="qr-container">
+
+                        <img
+                            id="twoFAQr"
+                            class="hidden"
+                            alt="2FA QR Code"
+                        >
+
+                    </div>
+
+
+                    <!-- SECRET -->
+
+                    <div class="form-group">
+
+                        <label>
+                            Secret Key
+                        </label>
+
+                        <div
+                            id="twoFASecret"
+                            class="secret-key"
+                        >
+                            —
+                        </div>
+
+                    </div>
+
+
+                    <!-- URI -->
+
+                    <div class="form-group">
+
+                        <label>
+                            Provisioning URI
+                        </label>
+
+                        <div
+                            id="twoFAUri"
+                            class="secret-key"
+                        >
+                            —
+                        </div>
+
+                    </div>
+
+
+                    <!-- OTP -->
+
+                    <div class="form-group">
+
+                        <label for="twoFACode">
+                            Authenticator Code
+                        </label>
+
+                        <input
+                            type="text"
+                            id="twoFACode"
+                            class="otp-input"
+                            maxlength="6"
+                            inputmode="numeric"
+                            placeholder="000000"
+                        >
+
+                    </div>
+
+
+                    <button
+                        id="enable2FAButtonSetup"
+                        type="button"
+                        class="primary-button"
+                        onclick="enable2FA()"
+                    >
+                        Verify & Enable 2FA
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="twoFAMessage"
+                    class="message"
+                ></div>
+
+            </div>
+
+
+            <!-- =================================================
+                 PASSWORD RESET
+            ================================================== -->
+
+            <div class="settings-card reset-card">
+
+                <div class="settings-card-header">
+
+                    <div class="settings-icon">
+                        🔄
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Password Recovery
+                        </h3>
+
+                        <p>
+                            Generate a reset token if you need to recover your password.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="resetEmail">
+                        Account Email
+                    </label>
+
+                    <input
+                        type="email"
+                        id="resetEmail"
+                        placeholder="Enter registered email"
+                    >
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="secondary-button"
+                    onclick="requestResetFromSettings()"
+                >
+                    Generate Reset Token
+                </button>
+
+
+                <div
+                    id="settingsResetMessage"
+                    class="message"
+                ></div>
+
+
+                <!-- COMPLETE RESET -->
+
+                <form
+                    id="settingsResetForm"
+                    class="hidden"
+                    onsubmit="event.preventDefault(); completeResetFromSettings();"
+                >
+
+                    <div class="form-group">
+
+                        <label for="settingsResetToken">
+                            Reset Token
+                        </label>
+
+                        <input
+                            type="text"
+                            id="settingsResetToken"
+                            placeholder="Reset token"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settingsResetPassword">
+                            New Password
+                        </label>
+
+                        <input
+                            type="password"
+                            id="settingsResetPassword"
+                            placeholder="Minimum 8 characters"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settingsResetConfirm">
+                            Confirm Password
+                        </label>
+
+                        <input
+                            type="password"
+                            id="settingsResetConfirm"
+                            placeholder="Confirm password"
+                        >
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        Complete Password Reset
+                    </button>
+
+                </form>
+
+            </div>
+
+
+            <!-- =================================================
+                 LOGOUT
+            ================================================== -->
+
+            <div class="settings-card danger-zone">
+
+                <div class="settings-card-header">
+
+                    <div class="settings-icon">
+                        🚪
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Sign Out
+                        </h3>
+
+                        <p>
+                            End your current investigator session.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="danger-button"
+                    onclick="logout()"
+                >
+                    Sign Out Securely
+                </button>
+
+            </div>
+
+        </section>
 
     </main>
 
@@ -1092,5 +1984,4 @@ CCTV camera recorded the vehicle near the location."
 <script src="script.js"></script>
 
 </body>
-
 </html>

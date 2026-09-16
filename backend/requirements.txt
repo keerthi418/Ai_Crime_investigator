@@ -2,4 +2,9 @@ fastapi
 uvicorn
 networkx
 pydantic
+email-validator
 reportlab
+matplotlib
+pandas
+openpyxl
+xlrd

@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+import html
 import textwrap
 
 import matplotlib
@@ -27,9 +28,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
 
+# ============================================================
+# DIRECTORIES
+# ============================================================
+
 BASE_DIR = Path(__file__).resolve().parents[2]
+
 REPORTS_DIR = BASE_DIR / "reports"
-REPORTS_DIR.mkdir(exist_ok=True)
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -62,6 +68,7 @@ GRAY_300 = colors.HexColor("#D1D5DB")
 GRAY_200 = colors.HexColor("#E5E7EB")
 GRAY_100 = colors.HexColor("#F3F4F6")
 GRAY_50 = colors.HexColor("#F9FAFB")
+
 WHITE = colors.white
 
 
@@ -71,8 +78,8 @@ WHITE = colors.white
 
 def register_fonts():
     """
-    Try to use Arial if available.
-    Fall back to Helvetica when Arial is not available.
+    Use Arial when available on Windows.
+    Otherwise fall back to Helvetica.
     """
 
     windows_fonts = Path("C:/Windows/Fonts")
@@ -84,32 +91,88 @@ def register_fonts():
     if regular.exists() and bold.exists():
 
         try:
+
             pdfmetrics.registerFont(
-                TTFont("ArialCustom", str(regular))
+                TTFont(
+                    "ArialCustom",
+                    str(regular)
+                )
             )
 
             pdfmetrics.registerFont(
-                TTFont("ArialCustom-Bold", str(bold))
+                TTFont(
+                    "ArialCustom-Bold",
+                    str(bold)
+                )
             )
 
             if italic.exists():
+
                 pdfmetrics.registerFont(
-                    TTFont("ArialCustom-Italic", str(italic))
+                    TTFont(
+                        "ArialCustom-Italic",
+                        str(italic)
+                    )
                 )
 
-            return "ArialCustom", "ArialCustom-Bold"
+            return (
+                "ArialCustom",
+                "ArialCustom-Bold"
+            )
 
         except Exception:
             pass
 
-    return "Helvetica", "Helvetica-Bold"
+    return (
+        "Helvetica",
+        "Helvetica-Bold"
+    )
 
 
 FONT_REGULAR, FONT_BOLD = register_fonts()
 
 
 # ============================================================
-# PDF HEADER / FOOTER
+# SAFE TEXT
+# ============================================================
+
+def safe_text(value):
+    """
+    Convert any value to safe ReportLab HTML text.
+    """
+
+    if value is None:
+        return ""
+
+    return html.escape(str(value))
+
+
+# ============================================================
+# TEXT WRAPPING
+# ============================================================
+
+def wrap_text(text, width=110):
+
+    if text is None:
+        return ""
+
+    text = str(text)
+
+    if not text:
+        return ""
+
+    return "\n".join(
+        textwrap.wrap(
+            text,
+            width=width,
+            break_long_words=True,
+            break_on_hyphens=False
+        )
+    )
+
+
+# ============================================================
+# HEADER / FOOTER
 # ============================================================
 
 def draw_header_footer(canvas, doc):
@@ -118,7 +181,10 @@ def draw_header_footer(canvas, doc):
 
     width, height = A4
 
-    # Header line
+    # --------------------------------------------------------
+    # HEADER LINE
+    # --------------------------------------------------------
+
     canvas.setStrokeColor(BLUE)
     canvas.setLineWidth(1.2)
 
@@ -129,8 +195,14 @@ def draw_header_footer(canvas, doc):
         height - 16 * mm
     )
 
-    # Header title
-    canvas.setFont(FONT_BOLD, 8)
+    # --------------------------------------------------------
+    # HEADER TITLE
+    # --------------------------------------------------------
+
+    canvas.setFont(
+        FONT_BOLD,
+        8
+    )
 
     canvas.setFillColor(NAVY)
 
@@ -140,7 +212,14 @@ def draw_header_footer(canvas, doc):
         "AI CRIME INVESTIGATOR"
     )
 
-    canvas.setFont(FONT_REGULAR, 7)
+    # --------------------------------------------------------
+    # HEADER RIGHT
+    # --------------------------------------------------------
+
+    canvas.setFont(
+        FONT_REGULAR,
+        7
+    )
 
     canvas.setFillColor(GRAY_500)
 
@@ -150,7 +229,10 @@ def draw_header_footer(canvas, doc):
         "AI-Assisted Investigation Report"
     )
 
-    # Footer line
+    # --------------------------------------------------------
+    # FOOTER LINE
+    # --------------------------------------------------------
+
     canvas.setStrokeColor(GRAY_300)
     canvas.setLineWidth(0.5)
 
@@ -161,8 +243,14 @@ def draw_header_footer(canvas, doc):
         15 * mm
     )
 
-    # Footer
-    canvas.setFont(FONT_REGULAR, 7)
+    # --------------------------------------------------------
+    # FOOTER LEFT
+    # --------------------------------------------------------
+
+    canvas.setFont(
+        FONT_REGULAR,
+        7
+    )
 
     canvas.setFillColor(GRAY_500)
 
@@ -171,6 +259,10 @@ def draw_header_footer(canvas, doc):
         9 * mm,
         "Confidential Investigation Report"
     )
+
+    # --------------------------------------------------------
+    # FOOTER PAGE NUMBER
+    # --------------------------------------------------------
 
     canvas.drawRightString(
         width - 18 * mm,
@@ -182,43 +274,11 @@ def draw_header_footer(canvas, doc):
 
 
 # ============================================================
-# SAFE TEXT
-# ============================================================
-
-def safe_text(value):
-
-    if value is None:
-        return ""
-
-    return str(value)
-
-
-# ============================================================
-# WRAP LONG TEXT
-# ============================================================
-
-def wrap_text(text, width=110):
-
-    text = safe_text(text)
-
-    if not text:
-        return ""
-
-    return "\n".join(
-        textwrap.wrap(
-            text,
-            width=width,
-            break_long_words=False
-        )
-    )
-
-
-# ============================================================
 # GRAPH GENERATOR
 # ============================================================
 
 def generate_graph_image(
-    graph_data,
+    graph_data=None,
     relations=None,
     entities=None,
     start=None,
@@ -227,12 +287,13 @@ def generate_graph_image(
 
     relations = relations or []
     entities = entities or []
+    graph_data = graph_data or {}
 
     graph = nx.DiGraph()
 
-    # --------------------------------------------------------
-    # Add entities
-    # --------------------------------------------------------
+    # ========================================================
+    # ADD ENTITIES
+    # ========================================================
 
     for entity in entities:
 
@@ -246,6 +307,7 @@ def generate_graph_image(
 
             entity_type = (
                 entity.get("type")
+                or entity.get("entity_type")
                 or "PERSON"
             )
 
@@ -255,18 +317,24 @@ def generate_graph_image(
             entity_type = "PERSON"
 
         if name:
+
             graph.add_node(
                 str(name),
-                entity_type=str(entity_type).upper()
+                entity_type=str(
+                    entity_type
+                ).upper()
             )
 
-    # --------------------------------------------------------
-    # Add graph nodes
-    # --------------------------------------------------------
+    # ========================================================
+    # ADD GRAPH NODES
+    # ========================================================
 
     if isinstance(graph_data, dict):
 
-        nodes = graph_data.get("nodes", [])
+        nodes = graph_data.get(
+            "nodes",
+            []
+        )
 
         for node in nodes:
 
@@ -293,97 +361,116 @@ def generate_graph_image(
 
                 graph.add_node(
                     str(node_id),
-                    entity_type=str(node_type).upper()
+                    entity_type=str(
+                        node_type
+                    ).upper()
                 )
 
-    # --------------------------------------------------------
-    # Add relations
-    # --------------------------------------------------------
+    # ========================================================
+    # ADD RELATIONS
+    # ========================================================
 
     for relation in relations:
 
         if not isinstance(relation, dict):
             continue
 
-        source = relation.get("source")
-        target_node = relation.get("target")
+        source = (
+            relation.get("source")
+            or relation.get("from")
+        )
 
-        if not source or not target_node:
-            continue
+        target_node = (
+            relation.get("target")
+            or relation.get("to")
+        )
 
         relation_name = (
             relation.get("relation")
+            or relation.get("label")
             or relation.get("type")
             or "related_to"
         )
 
-        graph.add_node(
-            str(source),
-            entity_type="PERSON"
-        )
+        if not source or not target_node:
+            continue
 
-        graph.add_node(
-            str(target_node),
-            entity_type="PERSON"
-        )
+        source = str(source)
+        target_node = str(target_node)
+
+        if source not in graph.nodes:
+
+            graph.add_node(
+                source,
+                entity_type="PERSON"
+            )
+
+        if target_node not in graph.nodes:
+
+            graph.add_node(
+                target_node,
+                entity_type="PERSON"
+            )
 
         graph.add_edge(
-            str(source),
-            str(target_node),
+            source,
+            target_node,
             relation=str(relation_name)
         )
 
-    # --------------------------------------------------------
-    # If graph_data contains edges
-    # --------------------------------------------------------
+    # ========================================================
+    # GRAPH DATA EDGES
+    # ========================================================
 
     if isinstance(graph_data, dict):
 
-        edges = graph_data.get("edges", [])
+        edges = graph_data.get(
+            "edges",
+            []
+        )
 
         for edge in edges:
 
-            if isinstance(edge, dict):
-
-                source = (
-                    edge.get("source")
-                    or edge.get("from")
-                )
-
-                target_node = (
-                    edge.get("target")
-                    or edge.get("to")
-                )
-
-                relation_name = (
-                    edge.get("relation")
-                    or edge.get("label")
-                    or edge.get("type")
-                    or "related_to"
-                )
-
-            else:
+            if not isinstance(edge, dict):
                 continue
+
+            source = (
+                edge.get("source")
+                or edge.get("from")
+            )
+
+            target_node = (
+                edge.get("target")
+                or edge.get("to")
+            )
+
+            relation_name = (
+                edge.get("relation")
+                or edge.get("label")
+                or edge.get("type")
+                or "related_to"
+            )
 
             if source and target_node:
 
                 graph.add_edge(
                     str(source),
                     str(target_node),
-                    relation=str(relation_name)
+                    relation=str(
+                        relation_name
+                    )
                 )
 
-    # --------------------------------------------------------
-    # Empty graph protection
-    # --------------------------------------------------------
+    # ========================================================
+    # EMPTY GRAPH
+    # ========================================================
 
     if len(graph.nodes) == 0:
-
         return None
 
-    # --------------------------------------------------------
-    # Figure
-    # --------------------------------------------------------
+    # ========================================================
+    # FIGURE
+    # ========================================================
 
     fig = plt.figure(
         figsize=(12, 7),
@@ -394,13 +481,17 @@ def generate_graph_image(
 
     ax.set_facecolor("#F8FAFC")
 
-    # --------------------------------------------------------
-    # Layout
-    # --------------------------------------------------------
+    # ========================================================
+    # GRAPH LAYOUT
+    # ========================================================
 
     try:
 
-        if len(graph.nodes) <= 3:
+        node_count = len(
+            graph.nodes
+        )
+
+        if node_count <= 3:
 
             pos = nx.spring_layout(
                 graph,
@@ -408,7 +499,7 @@ def generate_graph_image(
                 k=2.5
             )
 
-        elif len(graph.nodes) <= 10:
+        elif node_count <= 10:
 
             pos = nx.spring_layout(
                 graph,
@@ -430,9 +521,9 @@ def generate_graph_image(
             seed=42
         )
 
-    # --------------------------------------------------------
-    # Node groups
-    # --------------------------------------------------------
+    # ========================================================
+    # NODE GROUPS
+    # ========================================================
 
     person_nodes = []
     evidence_nodes = []
@@ -440,10 +531,15 @@ def generate_graph_image(
     date_nodes = []
     other_nodes = []
 
-    for node, data in graph.nodes(data=True):
+    for node, data in graph.nodes(
+        data=True
+    ):
 
         node_type = str(
-            data.get("entity_type", "PERSON")
+            data.get(
+                "entity_type",
+                "PERSON"
+            )
         ).upper()
 
         if "EVIDENCE" in node_type:
@@ -466,9 +562,9 @@ def generate_graph_image(
 
             other_nodes.append(node)
 
-    # --------------------------------------------------------
-    # Person nodes
-    # --------------------------------------------------------
+    # ========================================================
+    # PERSON
+    # ========================================================
 
     if person_nodes:
 
@@ -484,9 +580,9 @@ def generate_graph_image(
             ax=ax
         )
 
-    # --------------------------------------------------------
-    # Evidence nodes
-    # --------------------------------------------------------
+    # ========================================================
+    # EVIDENCE
+    # ========================================================
 
     if evidence_nodes:
 
@@ -502,9 +598,9 @@ def generate_graph_image(
             ax=ax
         )
 
-    # --------------------------------------------------------
-    # Location nodes
-    # --------------------------------------------------------
+    # ========================================================
+    # LOCATION
+    # ========================================================
 
     if location_nodes:
 
@@ -520,9 +616,9 @@ def generate_graph_image(
             ax=ax
         )
 
-    # --------------------------------------------------------
-    # Date nodes
-    # --------------------------------------------------------
+    # ========================================================
+    # DATE
+    # ========================================================
 
     if date_nodes:
 
@@ -538,9 +634,9 @@ def generate_graph_image(
             ax=ax
         )
 
-    # --------------------------------------------------------
-    # Other nodes
-    # --------------------------------------------------------
+    # ========================================================
+    # OTHER
+    # ========================================================
 
     if other_nodes:
 
@@ -556,45 +652,53 @@ def generate_graph_image(
             ax=ax
         )
 
-    # --------------------------------------------------------
-    # Start node
-    # --------------------------------------------------------
+    # ========================================================
+    # START NODE
+    # ========================================================
 
-    if start and start in graph.nodes:
+    if start:
 
-        nx.draw_networkx_nodes(
-            graph,
-            pos,
-            nodelist=[start],
-            node_color="#BBF7D0",
-            edgecolors="#15803D",
-            node_size=2200,
-            node_shape="o",
-            linewidths=3,
-            ax=ax
-        )
+        start = str(start)
 
-    # --------------------------------------------------------
-    # Target node
-    # --------------------------------------------------------
+        if start in graph.nodes:
 
-    if target and target in graph.nodes:
+            nx.draw_networkx_nodes(
+                graph,
+                pos,
+                nodelist=[start],
+                node_color="#BBF7D0",
+                edgecolors="#15803D",
+                node_size=2200,
+                node_shape="o",
+                linewidths=3,
+                ax=ax
+            )
 
-        nx.draw_networkx_nodes(
-            graph,
-            pos,
-            nodelist=[target],
-            node_color="#FECACA",
-            edgecolors="#B91C1C",
-            node_size=2200,
-            node_shape="o",
-            linewidths=3,
-            ax=ax
-        )
+    # ========================================================
+    # TARGET NODE
+    # ========================================================
 
-    # --------------------------------------------------------
-    # Edges
-    # --------------------------------------------------------
+    if target:
+
+        target = str(target)
+
+        if target in graph.nodes:
+
+            nx.draw_networkx_nodes(
+                graph,
+                pos,
+                nodelist=[target],
+                node_color="#FECACA",
+                edgecolors="#B91C1C",
+                node_size=2200,
+                node_shape="o",
+                linewidths=3,
+                ax=ax
+            )
+
+    # ========================================================
+    # EDGES
+    # ========================================================
 
     nx.draw_networkx_edges(
         graph,
@@ -608,9 +712,9 @@ def generate_graph_image(
         ax=ax
     )
 
-    # --------------------------------------------------------
-    # Labels
-    # --------------------------------------------------------
+    # ========================================================
+    # NODE LABELS
+    # ========================================================
 
     labels = {}
 
@@ -621,7 +725,8 @@ def generate_graph_image(
         if len(node_text) > 22:
 
             node_text = (
-                node_text[:19] + "..."
+                node_text[:19]
+                + "..."
             )
 
         labels[node] = node_text
@@ -636,13 +741,17 @@ def generate_graph_image(
         ax=ax
     )
 
-    # --------------------------------------------------------
-    # Edge labels
-    # --------------------------------------------------------
+    # ========================================================
+    # EDGE LABELS
+    # ========================================================
 
     edge_labels = {}
 
-    for source, target_node, data in graph.edges(
+    for (
+        source,
+        target_node,
+        data
+    ) in graph.edges(
         data=True
     ):
 
@@ -653,7 +762,7 @@ def generate_graph_image(
 
         edge_labels[
             (source, target_node)
-        ] = relation_name
+        ] = str(relation_name)
 
     if edge_labels:
 
@@ -671,9 +780,9 @@ def generate_graph_image(
             ax=ax
         )
 
-    # --------------------------------------------------------
-    # Title
-    # --------------------------------------------------------
+    # ========================================================
+    # TITLE
+    # ========================================================
 
     ax.set_title(
         "Investigation Knowledge Graph",
@@ -683,13 +792,14 @@ def generate_graph_image(
         pad=18
     )
 
-    # --------------------------------------------------------
-    # Legend
-    # --------------------------------------------------------
+    # ========================================================
+    # LEGEND
+    # ========================================================
 
     from matplotlib.lines import Line2D
 
     legend_items = [
+
         Line2D(
             [0],
             [0],
@@ -700,6 +810,7 @@ def generate_graph_image(
             markeredgecolor="#1D4ED8",
             markersize=10
         ),
+
         Line2D(
             [0],
             [0],
@@ -710,6 +821,7 @@ def generate_graph_image(
             markeredgecolor="#D97706",
             markersize=10
         ),
+
         Line2D(
             [0],
             [0],
@@ -720,6 +832,7 @@ def generate_graph_image(
             markeredgecolor="#16A34A",
             markersize=10
         ),
+
         Line2D(
             [0],
             [0],
@@ -775,6 +888,10 @@ def generate_graph_image(
 
     plt.tight_layout()
 
+    # ========================================================
+    # SAVE IMAGE
+    # ========================================================
+
     timestamp = datetime.now().strftime(
         "%Y%m%d_%H%M%S_%f"
     )
@@ -796,7 +913,7 @@ def generate_graph_image(
 
 
 # ============================================================
-# CREATE PDF
+# PDF REPORT
 # ============================================================
 
 def generate_pdf_report(
@@ -823,9 +940,9 @@ def generate_pdf_report(
     astar_path = astar_path or []
     contradictions = contradictions or []
 
-    # --------------------------------------------------------
-    # File name
-    # --------------------------------------------------------
+    # ========================================================
+    # PDF FILE
+    # ========================================================
 
     timestamp = datetime.now().strftime(
         "%Y%m%d_%H%M%S"
@@ -836,30 +953,33 @@ def generate_pdf_report(
         / f"crime_investigation_{timestamp}.pdf"
     )
 
-    # --------------------------------------------------------
-    # Document
-    # --------------------------------------------------------
+    # ========================================================
+    # DOCUMENT
+    # ========================================================
 
     doc = SimpleDocTemplate(
         str(pdf_path),
         pagesize=A4,
 
-        # PROFESSIONAL MARGINS
-        rightMargin=18 * mm,
+        # Professional margins
         leftMargin=18 * mm,
+        rightMargin=18 * mm,
         topMargin=24 * mm,
         bottomMargin=22 * mm,
 
         title="AI Crime Investigator Report",
         author="AI Crime Investigator",
-        subject="AI-assisted crime investigation report"
+        subject="AI-assisted crime investigation report",
+
+        # Prevent accidental overflow
+        allowSplitting=1
     )
 
     styles = getSampleStyleSheet()
 
-    # --------------------------------------------------------
-    # Custom styles
-    # --------------------------------------------------------
+    # ========================================================
+    # STYLES
+    # ========================================================
 
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -930,18 +1050,21 @@ def generate_pdf_report(
         leading=11
     )
 
-    # --------------------------------------------------------
-    # Story
-    # --------------------------------------------------------
+    # ========================================================
+    # STORY
+    # ========================================================
 
     story = []
 
     # ========================================================
-    # COVER / TITLE
+    # TITLE
     # ========================================================
 
     story.append(
-        Spacer(1, 10 * mm)
+        Spacer(
+            1,
+            10 * mm
+        )
     )
 
     story.append(
@@ -958,52 +1081,59 @@ def generate_pdf_report(
         )
     )
 
-    # --------------------------------------------------------
-    # Case metadata
-    # --------------------------------------------------------
+    # ========================================================
+    # METADATA
+    # ========================================================
 
     generated_at = datetime.now().strftime(
         "%d %B %Y, %I:%M %p"
     )
 
     metadata = [
+
         [
             Paragraph(
                 "<b>Report Generated</b>",
                 table_body_style
             ),
             Paragraph(
-                generated_at,
+                safe_text(generated_at),
                 table_body_style
             )
         ],
+
         [
             Paragraph(
                 "<b>Investigator</b>",
                 table_body_style
             ),
             Paragraph(
-                safe_text(username) or "System User",
+                safe_text(username)
+                or "System User",
                 table_body_style
             )
         ],
+
         [
             Paragraph(
                 "<b>Start Entity</b>",
                 table_body_style
             ),
             Paragraph(
-                safe_text(start) or "Not specified",
+                safe_text(start)
+                or "Not specified",
                 table_body_style
             )
         ],
+
         [
             Paragraph(
                 "<b>Target Entity</b>",
                 table_body_style
             ),
             Paragraph(
-                safe_text(target) or "Not specified",
+                safe_text(target)
+                or "Not specified",
                 table_body_style
             )
         ]
@@ -1019,12 +1149,14 @@ def generate_pdf_report(
 
     metadata_table.setStyle(
         TableStyle([
+
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, -1),
                 GRAY_50
             ),
+
             (
                 "BOX",
                 (0, 0),
@@ -1032,6 +1164,7 @@ def generate_pdf_report(
                 0.7,
                 GRAY_300
             ),
+
             (
                 "INNERGRID",
                 (0, 0),
@@ -1039,30 +1172,35 @@ def generate_pdf_report(
                 0.4,
                 GRAY_200
             ),
+
             (
                 "VALIGN",
                 (0, 0),
                 (-1, -1),
                 "MIDDLE"
             ),
+
             (
                 "LEFTPADDING",
                 (0, 0),
                 (-1, -1),
                 8
             ),
+
             (
                 "RIGHTPADDING",
                 (0, 0),
                 (-1, -1),
                 8
             ),
+
             (
                 "TOPPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "BOTTOMPADDING",
                 (0, 0),
@@ -1077,11 +1215,14 @@ def generate_pdf_report(
     )
 
     story.append(
-        Spacer(1, 8 * mm)
+        Spacer(
+            1,
+            8 * mm
+        )
     )
 
     # ========================================================
-    # EXECUTIVE SUMMARY
+    # 1. EXECUTIVE SUMMARY
     # ========================================================
 
     story.append(
@@ -1091,11 +1232,27 @@ def generate_pdf_report(
         )
     )
 
-    confidence_text = (
-        f"{confidence}%"
-        if confidence is not None
-        else "Not available"
-    )
+    if confidence is not None:
+
+        try:
+
+            confidence_number = float(
+                confidence
+            )
+
+            confidence_text = (
+                f"{confidence_number:.1f}%"
+            )
+
+        except Exception:
+
+            confidence_text = (
+                safe_text(confidence)
+            )
+
+    else:
+
+        confidence_text = "Not available"
 
     summary_text = (
         "This report presents the results of an AI-assisted "
@@ -1113,42 +1270,50 @@ def generate_pdf_report(
         )
     )
 
-    # --------------------------------------------------------
-    # Summary metrics
-    # --------------------------------------------------------
+    # ========================================================
+    # SUMMARY METRICS
+    # ========================================================
 
     metric_data = [
+
         [
             Paragraph(
                 "<b>Entities</b>",
                 table_header_style
             ),
+
             Paragraph(
                 "<b>Relationships</b>",
                 table_header_style
             ),
+
             Paragraph(
                 "<b>Confidence</b>",
                 table_header_style
             ),
+
             Paragraph(
                 "<b>Contradictions</b>",
                 table_header_style
             )
         ],
+
         [
             Paragraph(
                 str(len(entities)),
                 table_body_style
             ),
+
             Paragraph(
                 str(len(relations)),
                 table_body_style
             ),
+
             Paragraph(
                 confidence_text,
                 table_body_style
             ),
+
             Paragraph(
                 str(len(contradictions)),
                 table_body_style
@@ -1168,18 +1333,21 @@ def generate_pdf_report(
 
     metric_table.setStyle(
         TableStyle([
+
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, 0),
                 NAVY
             ),
+
             (
                 "BACKGROUND",
                 (0, 1),
                 (-1, 1),
                 WHITE
             ),
+
             (
                 "BOX",
                 (0, 0),
@@ -1187,6 +1355,7 @@ def generate_pdf_report(
                 0.7,
                 GRAY_300
             ),
+
             (
                 "INNERGRID",
                 (0, 0),
@@ -1194,24 +1363,28 @@ def generate_pdf_report(
                 0.4,
                 GRAY_200
             ),
+
             (
                 "ALIGN",
                 (0, 0),
                 (-1, -1),
                 "CENTER"
             ),
+
             (
                 "VALIGN",
                 (0, 0),
                 (-1, -1),
                 "MIDDLE"
             ),
+
             (
                 "TOPPADDING",
                 (0, 0),
                 (-1, -1),
                 8
             ),
+
             (
                 "BOTTOMPADDING",
                 (0, 0),
@@ -1226,7 +1399,7 @@ def generate_pdf_report(
     )
 
     # ========================================================
-    # CASE INPUT
+    # 2. CASE INFORMATION
     # ========================================================
 
     if case_text:
@@ -1238,27 +1411,35 @@ def generate_pdf_report(
             )
         )
 
+        case_text_html = safe_text(
+            case_text
+        ).replace(
+            "\n",
+            "<br/>"
+        )
+
         case_box = Table(
             [[
                 Paragraph(
-                    safe_text(case_text).replace(
-                        "\n",
-                        "<br/>"
-                    ),
+                    case_text_html,
                     body_style
                 )
             ]],
-            colWidths=[160 * mm]
+            colWidths=[
+                160 * mm
+            ]
         )
 
         case_box.setStyle(
             TableStyle([
+
                 (
                     "BACKGROUND",
                     (0, 0),
                     (-1, -1),
                     GRAY_50
                 ),
+
                 (
                     "BOX",
                     (0, 0),
@@ -1266,24 +1447,28 @@ def generate_pdf_report(
                     0.7,
                     GRAY_300
                 ),
+
                 (
                     "LEFTPADDING",
                     (0, 0),
                     (-1, -1),
                     10
                 ),
+
                 (
                     "RIGHTPADDING",
                     (0, 0),
                     (-1, -1),
                     10
                 ),
+
                 (
                     "TOPPADDING",
                     (0, 0),
                     (-1, -1),
                     10
                 ),
+
                 (
                     "BOTTOMPADDING",
                     (0, 0),
@@ -1298,7 +1483,7 @@ def generate_pdf_report(
         )
 
     # ========================================================
-    # ENTITIES
+    # 3. ENTITIES
     # ========================================================
 
     story.append(
@@ -1309,10 +1494,12 @@ def generate_pdf_report(
     )
 
     entity_rows = [[
+
         Paragraph(
             "<b>Entity</b>",
             table_header_style
         ),
+
         Paragraph(
             "<b>Type</b>",
             table_header_style
@@ -1332,6 +1519,7 @@ def generate_pdf_report(
 
             entity_type = (
                 entity.get("type")
+                or entity.get("entity_type")
                 or "UNKNOWN"
             )
 
@@ -1341,10 +1529,12 @@ def generate_pdf_report(
             entity_type = "UNKNOWN"
 
         entity_rows.append([
+
             Paragraph(
                 safe_text(entity_name),
                 table_body_style
             ),
+
             Paragraph(
                 safe_text(entity_type),
                 table_body_style
@@ -1354,10 +1544,12 @@ def generate_pdf_report(
     if len(entity_rows) == 1:
 
         entity_rows.append([
+
             Paragraph(
                 "No entities extracted",
                 table_body_style
             ),
+
             Paragraph(
                 "-",
                 table_body_style
@@ -1375,18 +1567,21 @@ def generate_pdf_report(
 
     entity_table.setStyle(
         TableStyle([
+
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, 0),
                 NAVY
             ),
+
             (
                 "ROWBACKGROUNDS",
                 (0, 1),
                 (-1, -1),
                 [WHITE, GRAY_50]
             ),
+
             (
                 "BOX",
                 (0, 0),
@@ -1394,6 +1589,7 @@ def generate_pdf_report(
                 0.7,
                 GRAY_300
             ),
+
             (
                 "INNERGRID",
                 (0, 0),
@@ -1401,30 +1597,35 @@ def generate_pdf_report(
                 0.4,
                 GRAY_200
             ),
+
             (
                 "VALIGN",
                 (0, 0),
                 (-1, -1),
                 "TOP"
             ),
+
             (
                 "LEFTPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "RIGHTPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "TOPPADDING",
                 (0, 0),
                 (-1, -1),
                 6
             ),
+
             (
                 "BOTTOMPADDING",
                 (0, 0),
@@ -1439,7 +1640,7 @@ def generate_pdf_report(
     )
 
     # ========================================================
-    # RELATIONSHIPS
+    # 4. RELATIONSHIPS
     # ========================================================
 
     story.append(
@@ -1450,14 +1651,17 @@ def generate_pdf_report(
     )
 
     relation_rows = [[
+
         Paragraph(
             "<b>Source</b>",
             table_header_style
         ),
+
         Paragraph(
             "<b>Relationship</b>",
             table_header_style
         ),
+
         Paragraph(
             "<b>Target</b>",
             table_header_style
@@ -1469,34 +1673,37 @@ def generate_pdf_report(
         if not isinstance(relation, dict):
             continue
 
-        source = relation.get(
-            "source",
-            ""
+        source = (
+            relation.get("source")
+            or relation.get("from")
+            or ""
         )
 
-        relation_name = relation.get(
-            "relation"
-            ,
-            relation.get(
-                "type",
-                "related_to"
-            )
+        relation_name = (
+            relation.get("relation")
+            or relation.get("label")
+            or relation.get("type")
+            or "related_to"
         )
 
-        target_name = relation.get(
-            "target",
-            ""
+        target_name = (
+            relation.get("target")
+            or relation.get("to")
+            or ""
         )
 
         relation_rows.append([
+
             Paragraph(
                 safe_text(source),
                 table_body_style
             ),
+
             Paragraph(
                 safe_text(relation_name),
                 table_body_style
             ),
+
             Paragraph(
                 safe_text(target_name),
                 table_body_style
@@ -1506,14 +1713,17 @@ def generate_pdf_report(
     if len(relation_rows) == 1:
 
         relation_rows.append([
+
             Paragraph(
                 "No relationships extracted",
                 table_body_style
             ),
+
             Paragraph(
                 "-",
                 table_body_style
             ),
+
             Paragraph(
                 "-",
                 table_body_style
@@ -1532,18 +1742,21 @@ def generate_pdf_report(
 
     relation_table.setStyle(
         TableStyle([
+
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, 0),
                 NAVY
             ),
+
             (
                 "ROWBACKGROUNDS",
                 (0, 1),
                 (-1, -1),
                 [WHITE, GRAY_50]
             ),
+
             (
                 "BOX",
                 (0, 0),
@@ -1551,6 +1764,7 @@ def generate_pdf_report(
                 0.7,
                 GRAY_300
             ),
+
             (
                 "INNERGRID",
                 (0, 0),
@@ -1558,30 +1772,35 @@ def generate_pdf_report(
                 0.4,
                 GRAY_200
             ),
+
             (
                 "VALIGN",
                 (0, 0),
                 (-1, -1),
                 "TOP"
             ),
+
             (
                 "LEFTPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "RIGHTPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "TOPPADDING",
                 (0, 0),
                 (-1, -1),
                 6
             ),
+
             (
                 "BOTTOMPADDING",
                 (0, 0),
@@ -1596,7 +1815,7 @@ def generate_pdf_report(
     )
 
     # ========================================================
-    # GRAPH
+    # 5. KNOWLEDGE GRAPH
     # ========================================================
 
     story.append(
@@ -1614,14 +1833,14 @@ def generate_pdf_report(
         Paragraph(
             "The graph below represents the extracted "
             "investigation entities and relationships. "
-            "Different node shapes are used to distinguish "
-            "persons, evidence, locations and dates.",
+            "Different node shapes distinguish persons, "
+            "evidence, locations and dates.",
             body_style
         )
     )
 
     graph_image = generate_graph_image(
-        graph_data=graph_data or {},
+        graph_data=graph_data,
         relations=relations,
         entities=entities,
         start=start,
@@ -1632,8 +1851,8 @@ def generate_pdf_report(
 
         graph_img = Image(
             str(graph_image),
-            width=165 * mm,
-            height=96 * mm
+            width=160 * mm,
+            height=90 * mm
         )
 
         graph_img.hAlign = "CENTER"
@@ -1643,15 +1862,19 @@ def generate_pdf_report(
         )
 
         story.append(
-            Spacer(1, 4 * mm)
+            Spacer(
+                1,
+                4 * mm
+            )
         )
 
         story.append(
             Paragraph(
-                "Graph legend: Person = circle, Evidence = square, "
-                "Location = diamond, Date = triangle. "
-                "Green indicates the selected start entity and "
-                "red indicates the selected target entity.",
+                "Graph legend: Person = circle, "
+                "Evidence = square, Location = diamond, "
+                "Date = triangle. Green indicates the "
+                "selected start entity and red indicates "
+                "the selected target entity.",
                 small_style
             )
         )
@@ -1660,13 +1883,14 @@ def generate_pdf_report(
 
         story.append(
             Paragraph(
-                "Graph could not be generated for this investigation.",
+                "Graph could not be generated for "
+                "this investigation.",
                 body_style
             )
         )
 
     # ========================================================
-    # SEARCH PATHS
+    # 6. SEARCH PATH ANALYSIS
     # ========================================================
 
     story.append(
@@ -1687,41 +1911,49 @@ def generate_pdf_report(
         )
 
     path_rows = [
+
         [
             Paragraph(
                 "<b>Algorithm</b>",
                 table_header_style
             ),
+
             Paragraph(
                 "<b>Result</b>",
                 table_header_style
             )
         ],
+
         [
             Paragraph(
                 "Breadth-First Search (BFS)",
                 table_body_style
             ),
+
             Paragraph(
                 path_text(bfs_path),
                 table_body_style
             )
         ],
+
         [
             Paragraph(
                 "Depth-First Search (DFS)",
                 table_body_style
             ),
+
             Paragraph(
                 path_text(dfs_path),
                 table_body_style
             )
         ],
+
         [
             Paragraph(
                 "A* Search",
                 table_body_style
             ),
+
             Paragraph(
                 path_text(astar_path),
                 table_body_style
@@ -1740,18 +1972,21 @@ def generate_pdf_report(
 
     path_table.setStyle(
         TableStyle([
+
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, 0),
                 NAVY
             ),
+
             (
                 "ROWBACKGROUNDS",
                 (0, 1),
                 (-1, -1),
                 [WHITE, GRAY_50]
             ),
+
             (
                 "BOX",
                 (0, 0),
@@ -1759,6 +1994,7 @@ def generate_pdf_report(
                 0.7,
                 GRAY_300
             ),
+
             (
                 "INNERGRID",
                 (0, 0),
@@ -1766,30 +2002,35 @@ def generate_pdf_report(
                 0.4,
                 GRAY_200
             ),
+
             (
                 "VALIGN",
                 (0, 0),
                 (-1, -1),
                 "TOP"
             ),
+
             (
                 "LEFTPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "RIGHTPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "TOPPADDING",
                 (0, 0),
                 (-1, -1),
                 7
             ),
+
             (
                 "BOTTOMPADDING",
                 (0, 0),
@@ -1804,7 +2045,7 @@ def generate_pdf_report(
     )
 
     # ========================================================
-    # CONTRADICTIONS
+    # 7. CONTRADICTION ANALYSIS
     # ========================================================
 
     story.append(
@@ -1818,11 +2059,13 @@ def generate_pdf_report(
 
         for contradiction in contradictions:
 
+            contradiction_text = safe_text(
+                contradiction
+            )
+
             story.append(
                 Paragraph(
-                    "• " + safe_text(
-                        contradiction
-                    ),
+                    "• " + contradiction_text,
                     body_style
                 )
             )
@@ -1838,7 +2081,7 @@ def generate_pdf_report(
         )
 
     # ========================================================
-    # EXPLANATION
+    # 8. AI EXPLANATION
     # ========================================================
 
     story.append(
@@ -1864,17 +2107,21 @@ def generate_pdf_report(
                     body_style
                 )
             ]],
-            colWidths=[160 * mm]
+            colWidths=[
+                160 * mm
+            ]
         )
 
         explanation_box.setStyle(
             TableStyle([
+
                 (
                     "BACKGROUND",
                     (0, 0),
                     (-1, -1),
                     LIGHT_BLUE
                 ),
+
                 (
                     "BOX",
                     (0, 0),
@@ -1882,24 +2129,28 @@ def generate_pdf_report(
                     0.8,
                     BLUE
                 ),
+
                 (
                     "LEFTPADDING",
                     (0, 0),
                     (-1, -1),
                     10
                 ),
+
                 (
                     "RIGHTPADDING",
                     (0, 0),
                     (-1, -1),
                     10
                 ),
+
                 (
                     "TOPPADDING",
                     (0, 0),
                     (-1, -1),
                     10
                 ),
+
                 (
                     "BOTTOMPADDING",
                     (0, 0),
@@ -1923,7 +2174,7 @@ def generate_pdf_report(
         )
 
     # ========================================================
-    # FINAL ASSESSMENT
+    # 9. FINAL ASSESSMENT
     # ========================================================
 
     story.append(
@@ -1937,8 +2188,8 @@ def generate_pdf_report(
         "The investigation result should be treated as "
         "decision-support information rather than a final "
         "legal conclusion. Extracted relationships, search "
-        "paths and confidence values are dependent on the "
-        "quality and completeness of the supplied evidence."
+        "paths and confidence values depend on the quality "
+        "and completeness of the supplied evidence."
     )
 
     story.append(
@@ -1963,17 +2214,21 @@ def generate_pdf_report(
                 small_style
             )
         ]],
-        colWidths=[160 * mm]
+        colWidths=[
+            160 * mm
+        ]
     )
 
     disclaimer.setStyle(
         TableStyle([
+
             (
                 "BACKGROUND",
                 (0, 0),
                 (-1, -1),
                 LIGHT_ORANGE
             ),
+
             (
                 "BOX",
                 (0, 0),
@@ -1981,24 +2236,28 @@ def generate_pdf_report(
                 0.7,
                 ORANGE
             ),
+
             (
                 "LEFTPADDING",
                 (0, 0),
                 (-1, -1),
                 10
             ),
+
             (
                 "RIGHTPADDING",
                 (0, 0),
                 (-1, -1),
                 10
             ),
+
             (
                 "TOPPADDING",
                 (0, 0),
                 (-1, -1),
                 9
             ),
+
             (
                 "BOTTOMPADDING",
                 (0, 0),
@@ -2009,7 +2268,10 @@ def generate_pdf_report(
     )
 
     story.append(
-        Spacer(1, 6 * mm)
+        Spacer(
+            1,
+            6 * mm
+        )
     )
 
     story.append(
@@ -2025,6 +2287,20 @@ def generate_pdf_report(
         onFirstPage=draw_header_footer,
         onLaterPages=draw_header_footer
     )
+
+    # ========================================================
+    # CLEAN GRAPH IMAGE
+    # ========================================================
+
+    try:
+
+        if graph_image and graph_image.exists():
+
+            graph_image.unlink()
+
+    except Exception:
+
+        pass
 
     return str(pdf_path)
 
@@ -2042,6 +2318,7 @@ def generate_report(
     contradictions=None,
     **kwargs
 ):
+
     return generate_pdf_report(
         entities=entities,
         relations=relations,
@@ -2052,7 +2329,11 @@ def generate_report(
     )
 
 
-def create_pdf_report(*args, **kwargs):
+def create_pdf_report(
+    *args,
+    **kwargs
+):
+
     return generate_report(
         *args,
         **kwargs

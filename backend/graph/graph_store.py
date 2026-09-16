@@ -1,235 +1,561 @@
-import networkx as nx
+"""
+Graph Store / Search Algorithms
+--------------------------------
 
+Provides graph traversal and path-search algorithms
+for the AI Crime Investigator.
 
-# ============================================
-# BUILD KNOWLEDGE GRAPH
-# ============================================
+Supported algorithms:
+    - BFS (Breadth-First Search)
+    - DFS (Depth-First Search)
+    - A* (A-Star Search)
 
-def build_graph(relations):
+The graph is expected to be a NetworkX graph.
 
-    graph = nx.Graph()
+Node names are normalized case-insensitively so that:
 
-    for relation in relations:
+    "Ravi"
+    "ravi"
+    " RAVI "
 
-        source = relation["source"]
+can refer to the same graph node.
+"""
 
-        target = relation["target"]
+import heapq
+from collections import deque
 
-        relationship = relation["relation"]
 
+# ============================================================
+# NODE NORMALIZATION
+# ============================================================
 
-        # Add nodes
+def normalize_node(graph, value):
+    """
+    Find the actual graph node corresponding to a user-provided
+    node value.
 
-        graph.add_node(source)
+    Matching is:
+        1. Exact match
+        2. Case-insensitive match
+        3. Whitespace-normalized match
 
-        graph.add_node(target)
+    Args:
+        graph:
+            NetworkX graph.
 
+        value:
+            Node name supplied by the user.
 
-        # Add relationship
+    Returns:
+        Actual graph node if found, otherwise None.
+    """
 
-        graph.add_edge(
+    if graph is None:
+        return None
 
-            source,
+    if value is None:
+        return None
 
-            target,
+    value = str(value).strip()
 
-            relation=relationship,
+    if not value:
+        return None
 
-            weight=1
+    # --------------------------------------------------------
+    # Exact match
+    # --------------------------------------------------------
 
-        )
+    if value in graph.nodes:
+        return value
 
-    return graph
+    # --------------------------------------------------------
+    # Case-insensitive match
+    # --------------------------------------------------------
 
-
-# ============================================
-# BFS SEARCH
-# ============================================
-
-def bfs_search(graph, start, target):
-
-    if not start or not target:
-
-        return []
-
-
-    if start not in graph:
-
-        return []
-
-
-    if target not in graph:
-
-        return []
-
-
-    try:
-
-        return nx.shortest_path(
-
-            graph,
-
-            start,
-
-            target
-
-        )
-
-    except nx.NetworkXNoPath:
-
-        return []
-
-
-# ============================================
-# DFS SEARCH
-# ============================================
-
-def dfs_search(graph, start, target):
-
-    if not start or not target:
-
-        return []
-
-
-    if start not in graph:
-
-        return []
-
-
-    if target not in graph:
-
-        return []
-
-
-    visited = set()
-
-    path = []
-
-
-    def dfs(node):
-
-        visited.add(node)
-
-        path.append(node)
-
-
-        # Target found
-
-        if node == target:
-
-            return True
-
-
-        for neighbour in graph.neighbors(node):
-
-            if neighbour not in visited:
-
-                if dfs(neighbour):
-
-                    return True
-
-
-        path.pop()
-
-        return False
-
-
-    if dfs(start):
-
-        return path
-
-
-    return []
-
-
-# ============================================
-# A* SEARCH
-# ============================================
-
-def astar_search(graph, start, target):
-
-    if not start or not target:
-
-        return []
-
-
-    if start not in graph:
-
-        return []
-
-
-    if target not in graph:
-
-        return []
-
-
-    try:
-
-        return nx.astar_path(
-
-            graph,
-
-            start,
-
-            target,
-
-            heuristic=lambda a, b: 0,
-
-            weight="weight"
-
-        )
-
-    except nx.NetworkXNoPath:
-
-        return []
-
-
-# ============================================
-# GRAPH JSON
-# ============================================
-
-def graph_json(graph):
-
-    nodes = []
-
+    value_lower = value.lower()
 
     for node in graph.nodes:
 
-        nodes.append({
+        node_text = str(node).strip()
 
-            "id": node,
+        if node_text.lower() == value_lower:
+            return node
 
-            "type": "ENTITY"
-
-        })
-
-
-    edges = []
+    return None
 
 
-    for source, target, data in graph.edges(
-        data=True
-    ):
+# ============================================================
+# BFS
+# ============================================================
 
-        edges.append({
+def bfs(graph, start, target):
+    """
+    Breadth-First Search.
 
-            "source": source,
+    BFS finds the shortest path in terms of number
+    of edges when all edges have equal cost.
 
-            "target": target,
+    Args:
+        graph:
+            NetworkX graph.
 
-            "relation":
-                data.get(
-                    "relation",
-                    "related"
+        start:
+            Starting node.
+
+        target:
+            Destination node.
+
+    Returns:
+        list:
+            Path from start to target.
+
+        Example:
+            ["Ravi", "Transaction", "Bank"]
+    """
+
+    if graph is None:
+        return []
+
+    start = normalize_node(
+        graph,
+        start
+    )
+
+    target = normalize_node(
+        graph,
+        target
+    )
+
+    if start is None or target is None:
+        return []
+
+    if start == target:
+        return [start]
+
+    # --------------------------------------------------------
+    # Queue
+    # --------------------------------------------------------
+
+    queue = deque()
+
+    queue.append(
+        (
+            start,
+            [start]
+        )
+    )
+
+    visited = {start}
+
+    # --------------------------------------------------------
+    # Search
+    # --------------------------------------------------------
+
+    while queue:
+
+        current, path = queue.popleft()
+
+        # Sort neighbors for deterministic results.
+        neighbors = sorted(
+            graph.neighbors(current),
+            key=lambda node: str(node).lower()
+        )
+
+        for neighbor in neighbors:
+
+            if neighbor in visited:
+                continue
+
+            new_path = path + [neighbor]
+
+            # Target reached.
+            if neighbor == target:
+                return new_path
+
+            visited.add(neighbor)
+
+            queue.append(
+                (
+                    neighbor,
+                    new_path
+                )
+            )
+
+    # No path exists.
+    return []
+
+
+# ============================================================
+# DFS
+# ============================================================
+
+def dfs(graph, start, target):
+    """
+    Depth-First Search.
+
+    DFS explores one branch deeply before
+    backtracking.
+
+    Args:
+        graph:
+            NetworkX graph.
+
+        start:
+            Starting node.
+
+        target:
+            Destination node.
+
+    Returns:
+        list:
+            Path from start to target.
+    """
+
+    if graph is None:
+        return []
+
+    start = normalize_node(
+        graph,
+        start
+    )
+
+    target = normalize_node(
+        graph,
+        target
+    )
+
+    if start is None or target is None:
+        return []
+
+    # --------------------------------------------------------
+    # Stack
+    # --------------------------------------------------------
+
+    stack = [
+        (
+            start,
+            [start]
+        )
+    ]
+
+    visited = set()
+
+    # --------------------------------------------------------
+    # Search
+    # --------------------------------------------------------
+
+    while stack:
+
+        current, path = stack.pop()
+
+        if current in visited:
+            continue
+
+        visited.add(current)
+
+        # Target reached.
+        if current == target:
+            return path
+
+        # Sort neighbors to make traversal predictable.
+        neighbors = sorted(
+            graph.neighbors(current),
+            key=lambda node: str(node).lower(),
+            reverse=True
+        )
+
+        for neighbor in neighbors:
+
+            if neighbor in visited:
+                continue
+
+            stack.append(
+                (
+                    neighbor,
+                    path + [neighbor]
+                )
+            )
+
+    # No path exists.
+    return []
+
+
+# ============================================================
+# A* SEARCH
+# ============================================================
+
+def astar(graph, start, target):
+    """
+    A* Search.
+
+    Currently all relationships have equal cost,
+    so the heuristic is zero.
+
+    Therefore this behaves similarly to Uniform-Cost
+    Search / Dijkstra for the current graph.
+
+    The function is kept as A* so that a meaningful
+    heuristic can be added later.
+
+    Args:
+        graph:
+            NetworkX graph.
+
+        start:
+            Starting node.
+
+        target:
+            Destination node.
+
+    Returns:
+        list:
+            Path from start to target.
+    """
+
+    if graph is None:
+        return []
+
+    start = normalize_node(
+        graph,
+        start
+    )
+
+    target = normalize_node(
+        graph,
+        target
+    )
+
+    if start is None or target is None:
+        return []
+
+    if start == target:
+        return [start]
+
+    # --------------------------------------------------------
+    # Heuristic
+    # --------------------------------------------------------
+
+    def heuristic(node):
+        """
+        Current graph has no spatial information.
+
+        Therefore h(n) = 0.
+
+        This keeps the heuristic admissible.
+        """
+
+        return 0
+
+    # --------------------------------------------------------
+    # Priority Queue
+    # --------------------------------------------------------
+
+    open_set = []
+
+    counter = 0
+
+    heapq.heappush(
+        open_set,
+        (
+            heuristic(start),
+            0,
+            counter,
+            start,
+            [start]
+        )
+    )
+
+    # Best known cost from start.
+    best_cost = {
+        start: 0
+    }
+
+    # --------------------------------------------------------
+    # Search
+    # --------------------------------------------------------
+
+    while open_set:
+
+        (
+            _,
+            cost,
+            _,
+            current,
+            path
+        ) = heapq.heappop(open_set)
+
+        # Ignore stale queue entries.
+        if cost > best_cost.get(
+            current,
+            float("inf")
+        ):
+            continue
+
+        # Target reached.
+        if current == target:
+            return path
+
+        neighbors = sorted(
+            graph.neighbors(current),
+            key=lambda node: str(node).lower()
+        )
+
+        for neighbor in neighbors:
+
+            # Every edge currently has cost 1.
+            new_cost = cost + 1
+
+            if (
+                neighbor not in best_cost
+                or new_cost < best_cost[neighbor]
+            ):
+
+                best_cost[neighbor] = new_cost
+
+                counter += 1
+
+                priority = (
+                    new_cost
+                    + heuristic(neighbor)
                 )
 
-        })
+                heapq.heappush(
+                    open_set,
+                    (
+                        priority,
+                        new_cost,
+                        counter,
+                        neighbor,
+                        path + [neighbor]
+                    )
+                )
 
+    # No path exists.
+    return []
+
+
+# ============================================================
+# RUN ALL SEARCH ALGORITHMS
+# ============================================================
+
+def run_search_algorithms(
+    graph,
+    start,
+    target
+):
+    """
+    Run BFS, DFS and A* on the same graph.
+
+    Returns:
+
+        {
+            "BFS": [...],
+            "DFS": [...],
+            "A*": [...]
+        }
+    """
+
+    if graph is None:
+        return {
+            "BFS": [],
+            "DFS": [],
+            "A*": []
+        }
 
     return {
+        "BFS": bfs(
+            graph,
+            start,
+            target
+        ),
 
-        "nodes": nodes,
+        "DFS": dfs(
+            graph,
+            start,
+            target
+        ),
 
-        "edges": edges
+        "A*": astar(
+            graph,
+            start,
+            target
+        )
+    }
 
+
+# ============================================================
+# PATH FORMATTING
+# ============================================================
+
+def path_to_string(path):
+    """
+    Convert a path into a readable string.
+
+    Example:
+
+        ["Ravi", "Phone", "Chennai"]
+
+    becomes:
+
+        "Ravi -> Phone -> Chennai"
+    """
+
+    if not path:
+        return "No path found"
+
+    return " -> ".join(
+        str(node)
+        for node in path
+    )
+
+
+# ============================================================
+# SEARCH SUMMARY
+# ============================================================
+
+def get_search_summary(
+    graph,
+    start,
+    target
+):
+    """
+    Run all algorithms and return a structured summary.
+
+    Useful for API responses and frontend display.
+    """
+
+    results = run_search_algorithms(
+        graph,
+        start,
+        target
+    )
+
+    return {
+        "start": normalize_node(
+            graph,
+            start
+        ),
+
+        "target": normalize_node(
+            graph,
+            target
+        ),
+
+        "BFS": results["BFS"],
+
+        "DFS": results["DFS"],
+
+        "A*": results["A*"],
+
+        "BFS_text": path_to_string(
+            results["BFS"]
+        ),
+
+        "DFS_text": path_to_string(
+            results["DFS"]
+        ),
+
+        "A*_text": path_to_string(
+            results["A*"]
+        )
     }

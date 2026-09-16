@@ -1,864 +1,650 @@
+"""
+Relation Extraction
+-------------------
+
+Creates clean entity-to-entity relationships
+for the AI Crime Investigator.
+
+Important rule:
+A relationship target must always be an actual
+extracted entity, never an entire sentence.
+"""
+
 import re
 
 
 # ============================================================
-# RELATION EXTRACTION
-# ============================================================
-#
-# This module extracts meaningful relationships from a crime
-# investigation case description.
-#
-# Example:
-#
-# Ravi Kumar reported an unauthorized transaction.
-#
-# Ravi Kumar -> reported -> Unauthorized Transaction
-#
-# The transaction was transferred to Arun Sharma.
-#
-# Unauthorized Transaction -> transferred_to -> Arun Sharma
-#
-# Ravi Kumar shared his mobile phone with Priya.
-#
-# Ravi Kumar -> shared_phone -> Priya
-#
-# Priya contacted Arun Sharma.
-#
-# Priya -> contacted -> Arun Sharma
-#
+# BASIC HELPERS
 # ============================================================
 
-
-# ============================================================
-# GENERIC RELATION PATTERNS
-# ============================================================
-
-RELATION_PATTERNS = [
-
-    # --------------------------------------------------------
-    # reported
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+reported\s+(?:an?\s+)?"
-        r"(?:unauthorized\s+)?transaction\b",
-        "reported"
-    ),
-
-    # --------------------------------------------------------
-    # transferred_to
-    # --------------------------------------------------------
-    (
-        r"\b(?:the\s+)?(?:₹[\d,]+|rs\.?\s?[\d,]+|"
-        r"[\d,]+\s+rupees)?\s*"
-        r"transaction\s+(?:was\s+)?transferred\s+to\s+"
-        r"(?:an?\s+account\s+belonging\s+to\s+)?(.+?)"
-        r"(?=[.!?]|$)",
-        "transferred_to"
-    ),
-
-    # --------------------------------------------------------
-    # account_belongs_to
-    # --------------------------------------------------------
-    (
-        r"\ban?\s+account\s+belonging\s+to\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "account_belongs_to"
-    ),
-
-    # --------------------------------------------------------
-    # near
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+near\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "near"
-    ),
-
-    # --------------------------------------------------------
-    # shared_phone
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+shared\s+(?:his|her|their|the)?\s*"
-        r"(?:mobile\s+phone|phone|mobile)\s+with\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "shared_phone"
-    ),
-
-    # --------------------------------------------------------
-    # contacted
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+contacted\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "contacted"
-    ),
-
-    # --------------------------------------------------------
-    # communication
-    # --------------------------------------------------------
-    (
-        r"\bcommunication\s+between\s+(.+?)\s+and\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "communicated_with"
-    ),
-
-    # --------------------------------------------------------
-    # message communication
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+(?:had\s+)?communication\s+with\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "communicated_with"
-    ),
-
-    # --------------------------------------------------------
-    # met
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+met\s+(.+?)"
-        r"(?=[.!?]|$)",
-        "met"
-    ),
-
-    # --------------------------------------------------------
-    # saw
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+saw\s+(?:the\s+)?(.+?)"
-        r"(?=[.!?]|$)",
-        "saw"
-    ),
-
-    # --------------------------------------------------------
-    # used
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+used\s+(?:a\s+|an\s+|the\s+)?(.+?)"
-        r"(?=[.!?]|$)",
-        "used"
-    ),
-
-    # --------------------------------------------------------
-    # owned
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+owned\s+(?:a\s+|an\s+|the\s+)?(.+?)"
-        r"(?=[.!?]|$)",
-        "owned"
-    ),
-
-    # --------------------------------------------------------
-    # found
-    # --------------------------------------------------------
-    (
-        r"\b(.+?)\s+found\s+(?:a\s+|an\s+|the\s+)?(.+?)"
-        r"(?=[.!?]|$)",
-        "found"
-    ),
-]
-
-
-# ============================================================
-# HELPER: CLEAN ENTITY TEXT
-# ============================================================
-
-def clean_entity(value):
+def _clean(value):
     """
-    Clean extracted entity text.
+    Safely convert a value into a clean string.
     """
-
-    if not value:
+    if value is None:
         return ""
 
-    value = value.strip()
-
-    # Remove common leading words
-    value = re.sub(
-        r"^(?:the|a|an|his|her|their|my|your|"
-        r"account|person|individual)\s+",
-        "",
-        value,
-        flags=re.IGNORECASE
-    )
-
-    # Remove common trailing words
-    value = re.sub(
-        r"\s+(?:during|on|at|in|from|using|"
-        r"regarding|about|before|after)\b.*$",
-        "",
-        value,
-        flags=re.IGNORECASE
-    )
-
-    # Remove commas
-    value = value.strip(" ,")
-
-    return value.strip()
+    return str(value).strip()
 
 
-# ============================================================
-# HELPER: EXTRACT PERSON NAMES
-# ============================================================
-
-def extract_person_names(text):
+def _entity_text(entity):
     """
-    Extract likely person names from the case.
+    Extract the text/name of an entity.
 
-    Examples:
-        Ravi Kumar
-        Arun Sharma
-        Priya
+    Supported formats:
+
+        {"text": "Ravi Kumar", "type": "PERSON"}
+
+        {"label": "Ravi Kumar", "type": "PERSON"}
+
+        {"name": "Ravi Kumar", "type": "PERSON"}
+
+        "Ravi Kumar"
     """
 
-    names = []
+    if isinstance(entity, dict):
+        return _clean(
+            entity.get("text")
+            or entity.get("label")
+            or entity.get("name")
+        )
 
-    # --------------------------------------------------------
-    # Full names
-    # --------------------------------------------------------
+    return _clean(entity)
 
-    full_name_pattern = (
-        r"\b[A-Z][a-z]{2,}"
-        r"\s+"
-        r"[A-Z][a-z]{2,}\b"
-    )
 
-    for match in re.findall(
-        full_name_pattern,
-        text
-    ):
+def _entity_type(entity):
+    """
+    Extract entity type safely.
+    """
 
-        if match not in names:
-            names.append(match)
+    if isinstance(entity, dict):
+        return _clean(
+            entity.get("type")
+        ).upper()
 
-    # --------------------------------------------------------
-    # Known single names commonly used in the case
-    # --------------------------------------------------------
+    return ""
 
-    known_single_names = {
-        "Ravi",
-        "Arun",
-        "Priya"
+
+def _make_relation(source, relation, target):
+    """
+    Create the standard relation structure.
+    """
+
+    return {
+        "source": source,
+        "relation": relation,
+        "target": target
     }
 
-    for name in known_single_names:
-
-        if re.search(
-            r"\b" + re.escape(name) + r"\b",
-            text,
-            re.IGNORECASE
-        ):
-
-            # Don't add Ravi separately when
-            # Ravi Kumar already exists.
-
-            already_full_name = any(
-                name.lower()
-                in full_name.lower().split()
-                for full_name in names
-            )
-
-            if not already_full_name:
-                names.append(name)
-
-    return names
-
 
 # ============================================================
-# HELPER: FIND PERSON IN TEXT
+# MAIN RELATION EXTRACTION
 # ============================================================
 
-def resolve_person(value, person_names):
+def extract_relations(text, entities):
     """
-    Convert a captured phrase into the most likely
-    person name.
-    """
-
-    value = clean_entity(value)
-
-    if not value:
-        return None
-
-    # Exact full-name match
-    for name in person_names:
-
-        if value.lower() == name.lower():
-            return name
-
-    # Search full names inside captured text
-    for name in sorted(
-        person_names,
-        key=len,
-        reverse=True
-    ):
-
-        if re.search(
-            r"\b" + re.escape(name) + r"\b",
-            value,
-            re.IGNORECASE
-        ):
-            return name
-
-    return value
-
-
-# ============================================================
-# HELPER: ADD RELATION
-# ============================================================
-
-def add_relation(
-    relations,
-    seen,
-    source,
-    target,
-    relation
-):
-    """
-    Add a unique relation.
-    """
-
-    source = clean_entity(source)
-    target = clean_entity(target)
-
-    if not source or not target:
-        return
-
-    # Avoid self relationship
-    if source.lower() == target.lower():
-        return
-
-    key = (
-        source.lower(),
-        target.lower(),
-        relation.lower()
-    )
-
-    if key in seen:
-        return
-
-    relations.append({
-        "source": source,
-        "target": target,
-        "relation": relation
-    })
-
-    seen.add(key)
-
-
-# ============================================================
-# SPECIALIZED EXTRACTION
-# ============================================================
-
-def extract_specialized_relations(
-    text,
-    person_names,
-    relations,
-    seen
-):
-    """
-    Extract domain-specific crime investigation relations.
-    """
-
-    # ========================================================
-    # 1. REPORTING UNAUTHORIZED TRANSACTION
-    # ========================================================
-
-    pattern = (
-        r"\b("
-        + "|".join(
-            re.escape(name)
-            for name in sorted(
-                person_names,
-                key=len,
-                reverse=True
-            )
-        )
-        + r")\s+"
-        r"reported\s+(?:an?\s+)?"
-        r"(?:unauthorized\s+)?transaction\b"
-    )
-
-    if person_names:
-
-        for match in re.finditer(
-            pattern,
-            text,
-            re.IGNORECASE
-        ):
-
-            source = resolve_person(
-                match.group(1),
-                person_names
-            )
-
-            add_relation(
-                relations,
-                seen,
-                source,
-                "Unauthorized Transaction",
-                "reported"
-            )
-
-    # ========================================================
-    # 2. TRANSACTION TRANSFERRED TO PERSON
-    # ========================================================
-
-    transfer_patterns = [
-
-        # transaction ... transferred to Arun Sharma
-        r"\btransaction\b.*?"
-        r"\btransferred\s+to\s+"
-        r"(?:an?\s+account\s+belonging\s+to\s+)?"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)",
-
-        # transferred to an account belonging to Arun Sharma
-        r"\btransferred\s+to\s+"
-        r"an?\s+account\s+belonging\s+to\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-    ]
-
-    for pattern in transfer_patterns:
-
-        for match in re.finditer(
-            pattern,
-            text
-        ):
-
-            target = resolve_person(
-                match.group(1),
-                person_names
-            )
-
-            if target:
-
-                add_relation(
-                    relations,
-                    seen,
-                    "Unauthorized Transaction",
-                    target,
-                    "transferred_to"
-                )
-
-    # ========================================================
-    # 3. CCTV SHOWED PERSON NEAR PERSON
-    # ========================================================
-
-    cctv_pattern = (
-        r"\bCCTV\b.*?"
-        r"\bshowed\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-        r"\s+near\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-    )
-
-    for match in re.finditer(
-        cctv_pattern,
-        text
-    ):
-
-        source = resolve_person(
-            match.group(1),
-            person_names
-        )
-
-        target = resolve_person(
-            match.group(2),
-            person_names
-        )
-
-        if source and target:
-
-            add_relation(
-                relations,
-                seen,
-                source,
-                target,
-                "near"
-            )
-
-    # ========================================================
-    # 4. SHARED MOBILE PHONE
-    # ========================================================
-
-    shared_phone_pattern = (
-        r"\b("
-        + "|".join(
-            re.escape(name)
-            for name in sorted(
-                person_names,
-                key=len,
-                reverse=True
-            )
-        )
-        + r")\s+"
-        r"stated\s+that\s+"
-        r"(?:he|she|they)\s+"
-        r"had\s+shared\s+"
-        r"(?:his|her|their)?\s*"
-        r"(?:mobile\s+phone|phone|mobile)"
-        r"\s+with\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-    )
-
-    if person_names:
-
-        for match in re.finditer(
-            shared_phone_pattern,
-            text,
-            re.IGNORECASE
-        ):
-
-            source = resolve_person(
-                match.group(1),
-                person_names
-            )
-
-            target = resolve_person(
-                match.group(2),
-                person_names
-            )
-
-            if source and target:
-
-                add_relation(
-                    relations,
-                    seen,
-                    source,
-                    target,
-                    "shared_phone"
-                )
-
-    # Also support:
-    #
-    # Ravi Kumar shared his mobile phone with Priya.
-
-    direct_shared_pattern = (
-        r"\b("
-        + "|".join(
-            re.escape(name)
-            for name in sorted(
-                person_names,
-                key=len,
-                reverse=True
-            )
-        )
-        + r")\s+"
-        r"shared\s+(?:his|her|their)?\s*"
-        r"(?:mobile\s+phone|phone|mobile)"
-        r"\s+with\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-    )
-
-    if person_names:
-
-        for match in re.finditer(
-            direct_shared_pattern,
-            text,
-            re.IGNORECASE
-        ):
-
-            source = resolve_person(
-                match.group(1),
-                person_names
-            )
-
-            target = resolve_person(
-                match.group(2),
-                person_names
-            )
-
-            if source and target:
-
-                add_relation(
-                    relations,
-                    seen,
-                    source,
-                    target,
-                    "shared_phone"
-                )
-
-    # ========================================================
-    # 5. PHONE RECORDS -> CONTACTED
-    # ========================================================
-
-    contacted_pattern = (
-        r"\bPhone\s+records?\s+showed\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-        r"\s+contacted\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-    )
-
-    for match in re.finditer(
-        contacted_pattern,
-        text
-    ):
-
-        source = resolve_person(
-            match.group(1),
-            person_names
-        )
-
-        target = resolve_person(
-            match.group(2),
-            person_names
-        )
-
-        if source and target:
-
-            add_relation(
-                relations,
-                seen,
-                source,
-                target,
-                "contacted"
-            )
-
-    # ========================================================
-    # 6. MESSAGE RECORDS -> COMMUNICATION
-    # ========================================================
-
-    message_pattern = (
-        r"\bmessage\s+records?\s+showed\s+"
-        r"(?:communication\s+between\s+)?"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-        r"\s+and\s+"
-        r"([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*)"
-    )
-
-    for match in re.finditer(
-        message_pattern,
-        text
-    ):
-
-        source = resolve_person(
-            match.group(1),
-            person_names
-        )
-
-        target = resolve_person(
-            match.group(2),
-            person_names
-        )
-
-        if source and target:
-
-            add_relation(
-                relations,
-                seen,
-                source,
-                target,
-                "communicated_with"
-            )
-
-    # ========================================================
-    # 7. GENERIC CONTACTED RELATIONS
-    # ========================================================
-
-    if person_names:
-
-        person_pattern = "|".join(
-            re.escape(name)
-            for name in sorted(
-                person_names,
-                key=len,
-                reverse=True
-            )
-        )
-
-        generic_contacted = (
-            r"\b("
-            + person_pattern
-            + r")\s+contacted\s+("
-            + person_pattern
-            + r")\b"
-        )
-
-        for match in re.finditer(
-            generic_contacted,
-            text,
-            re.IGNORECASE
-        ):
-
-            source = resolve_person(
-                match.group(1),
-                person_names
-            )
-
-            target = resolve_person(
-                match.group(2),
-                person_names
-            )
-
-            if source and target:
-
-                add_relation(
-                    relations,
-                    seen,
-                    source,
-                    target,
-                    "contacted"
-                )
-
-
-# ============================================================
-# MAIN FUNCTION
-# ============================================================
-
-def extract_relations(text):
-    """
-    Extract relationships from a crime investigation case.
+    Extract simple and explainable relationships
+    between entities found in the case description.
+
+    Args:
+        text (str):
+            Original case description.
+
+        entities (list):
+            Entities extracted by the NER module.
 
     Returns:
+        list:
+            List of dictionaries containing:
 
-    [
-        {
-            "source": "Ravi Kumar",
-            "target": "Unauthorized Transaction",
-            "relation": "reported"
-        },
-        {
-            "source": "Unauthorized Transaction",
-            "target": "Arun Sharma",
-            "relation": "transferred_to"
-        }
-    ]
+            {
+                "source": "...",
+                "relation": "...",
+                "target": "..."
+            }
     """
 
+    text = _clean(text)
+
+    if not text or not entities:
+        return []
+
+    # --------------------------------------------------------
+    # NORMALIZE ENTITIES
+    # --------------------------------------------------------
+
+    normalized_entities = []
+
+    for entity in entities:
+
+        entity_text = _entity_text(entity)
+
+        if not entity_text:
+            continue
+
+        normalized_entities.append(
+            {
+                "text": entity_text,
+                "type": _entity_type(entity)
+            }
+        )
+
+    # --------------------------------------------------------
+    # REMOVE DUPLICATE ENTITIES
+    # --------------------------------------------------------
+
+    unique_entities = []
+
+    seen_entities = set()
+
+    for entity in normalized_entities:
+
+        key = entity["text"].lower()
+
+        if key not in seen_entities:
+
+            seen_entities.add(key)
+
+            unique_entities.append(entity)
+
+    normalized_entities = unique_entities
+
+    if not normalized_entities:
+        return []
+
+    # --------------------------------------------------------
+    # RELATION STORAGE
+    # --------------------------------------------------------
+
     relations = []
-    seen = set()
 
-    if not text:
-        return relations
+    relation_keys = set()
 
-    if not isinstance(text, str):
-        text = str(text)
+    def add(source, relation, target):
+        """
+        Add a relation only when both source and target
+        are valid extracted entities.
+        """
+
+        source = _clean(source)
+        relation = _clean(relation)
+        target = _clean(target)
+
+        if not source or not target or not relation:
+            return
+
+        # Prevent self relationships.
+        if source.lower() == target.lower():
+            return
+
+        relation_key = (
+            source.lower(),
+            relation.lower(),
+            target.lower()
+        )
+
+        if relation_key in relation_keys:
+            return
+
+        relation_keys.add(relation_key)
+
+        relations.append(
+            _make_relation(
+                source,
+                relation,
+                target
+            )
+        )
+
+    # --------------------------------------------------------
+    # ENTITY LOOKUP HELPERS
+    # --------------------------------------------------------
+
+    def find_entity(keyword):
+        """
+        Find an extracted entity containing the keyword.
+        """
+
+        keyword = _clean(keyword).lower()
+
+        if not keyword:
+            return None
+
+        for entity in normalized_entities:
+
+            if keyword in entity["text"].lower():
+
+                return entity["text"]
+
+        return None
+
+    def find_entity_by_type(*types):
+        """
+        Return all entities matching the requested types.
+        """
+
+        wanted_types = {
+            _clean(entity_type).upper()
+            for entity_type in types
+        }
+
+        return [
+            entity["text"]
+            for entity in normalized_entities
+            if entity["type"] in wanted_types
+        ]
+
+    def has_phrase(*phrases):
+        """
+        Check whether any phrase exists in the case text.
+        """
+
+        lower_text = text.lower()
+
+        return any(
+            _clean(phrase).lower() in lower_text
+            for phrase in phrases
+        )
 
     # ========================================================
-    # 1. EXTRACT PERSON NAMES
+    # ENTITY GROUPS
     # ========================================================
 
-    person_names = extract_person_names(text)
+    people = find_entity_by_type(
+        "PERSON"
+    )
 
-    # ========================================================
-    # 2. SPECIALIZED CRIME RELATIONS
-    # ========================================================
+    locations = find_entity_by_type(
+        "LOCATION",
+        "GPE",
+        "CITY",
+        "PLACE"
+    )
 
-    extract_specialized_relations(
-        text,
-        person_names,
-        relations,
-        seen
+    evidence = find_entity_by_type(
+        "EVIDENCE",
+        "MONEY",
+        "IP",
+        "IP ADDRESS",
+        "DATE",
+        "TIME"
     )
 
     # ========================================================
-    # 3. GENERIC PATTERNS
+    # PERSON / VICTIM
     # ========================================================
 
-    for pattern, relation_name in RELATION_PATTERNS:
+    victim = None
 
-        matches = re.finditer(
-            pattern,
-            text,
-            flags=re.IGNORECASE
+    if people:
+        victim = people[0]
+
+    # ========================================================
+    # MONEY / TRANSACTION
+    # ========================================================
+
+    money = None
+
+    # First try entity type.
+    for entity in normalized_entities:
+
+        if entity["type"] == "MONEY":
+
+            money = entity["text"]
+
+            break
+
+    # Then try currency symbols.
+    if not money:
+
+        currency_pattern = re.compile(
+            r"(?:₹|\$|€|£)\s*[\d,]+(?:\.\d+)?"
         )
 
-        for match in matches:
+        for entity in normalized_entities:
 
-            if len(match.groups()) < 2:
+            if currency_pattern.search(
+                entity["text"]
+            ):
+
+                money = entity["text"]
+
+                break
+
+    # ========================================================
+    # TRANSACTION ENTITY
+    # ========================================================
+
+    transaction = None
+
+    transaction_keywords = (
+        "transaction",
+        "payment",
+        "transfer",
+        "withdrawal",
+        "deposit"
+    )
+
+    for entity in normalized_entities:
+
+        lower_entity = entity["text"].lower()
+
+        if any(
+            keyword in lower_entity
+            for keyword in transaction_keywords
+        ):
+
+            transaction = entity["text"]
+
+            break
+
+    # --------------------------------------------------------
+    # Victim -> Transaction
+    # --------------------------------------------------------
+
+    if victim and transaction:
+
+        add(
+            victim,
+            "reported",
+            transaction
+        )
+
+    # --------------------------------------------------------
+    # Transaction -> Money
+    # --------------------------------------------------------
+
+    if transaction and money:
+
+        add(
+            transaction,
+            "amount",
+            money
+        )
+
+    # ========================================================
+    # IP ADDRESS
+    # ========================================================
+
+    ip_address = None
+
+    ip_pattern = re.compile(
+        r"^(?:\d{1,3}\.){3}\d{1,3}$"
+    )
+
+    for entity in normalized_entities:
+
+        entity_type = entity["type"]
+
+        entity_value = entity["text"]
+
+        if (
+            entity_type in {
+                "IP",
+                "IP ADDRESS"
+            }
+            or ip_pattern.fullmatch(entity_value)
+        ):
+
+            ip_address = entity_value
+
+            break
+
+    # ========================================================
+    # LOGIN ACTIVITY
+    # ========================================================
+
+    login_activity = None
+
+    login_keywords = (
+        "login",
+        "logged in",
+        "login attempt",
+        "login activity",
+        "account access"
+    )
+
+    for entity in normalized_entities:
+
+        lower_entity = entity["text"].lower()
+
+        if any(
+            keyword in lower_entity
+            for keyword in login_keywords
+        ):
+
+            login_activity = entity["text"]
+
+            break
+
+    # --------------------------------------------------------
+    # Login -> IP
+    # --------------------------------------------------------
+
+    if login_activity and ip_address:
+
+        add(
+            login_activity,
+            "source_ip",
+            ip_address
+        )
+
+    # --------------------------------------------------------
+    # IP -> Victim
+    # --------------------------------------------------------
+
+    if (
+        victim
+        and ip_address
+        and has_phrase(
+            "accessed",
+            "login",
+            "logged in",
+            "email account",
+            "account was accessed",
+            "account access"
+        )
+    ):
+
+        add(
+            ip_address,
+            "accessed",
+            victim
+        )
+
+    # ========================================================
+    # SUSPICIOUS EMAIL / PHISHING
+    # ========================================================
+
+    suspicious_email = None
+
+    suspicious_keywords = (
+        "email",
+        "phishing",
+        "suspicious",
+        "link",
+        "message"
+    )
+
+    for entity in normalized_entities:
+
+        lower_entity = entity["text"].lower()
+
+        if any(
+            keyword in lower_entity
+            for keyword in suspicious_keywords
+        ):
+
+            suspicious_email = entity["text"]
+
+            break
+
+    # --------------------------------------------------------
+    # Suspicious Email -> Victim
+    # --------------------------------------------------------
+
+    if victim and suspicious_email:
+
+        add(
+            suspicious_email,
+            "targeted",
+            victim
+        )
+
+    # ========================================================
+    # LOCATION RELATIONSHIPS
+    # ========================================================
+
+    if locations:
+
+        primary_location = locations[0]
+
+        # IP -> Location
+        if ip_address:
+
+            add(
+                ip_address,
+                "associated_location",
+                primary_location
+            )
+
+        # Login -> Location
+        if login_activity:
+
+            add(
+                login_activity,
+                "occurred_in",
+                primary_location
+            )
+
+    # ========================================================
+    # GENERIC EVIDENCE RELATIONSHIPS
+    # ========================================================
+
+    if victim:
+
+        for item in evidence:
+
+            lower_item = item.lower()
+
+            # Do not duplicate already processed entities.
+            if item == money:
                 continue
 
-            source = clean_entity(
-                match.group(1)
+            if item == ip_address:
+                continue
+
+            if item == login_activity:
+                continue
+
+            # Unauthorized evidence.
+            if "unauthorized" in lower_item:
+
+                add(
+                    victim,
+                    "affected_by",
+                    item
+                )
+
+    # ========================================================
+    # DIRECT PERSON -> LOCATION RELATION
+    # ========================================================
+
+    if victim and locations:
+
+        if has_phrase(
+            "was in",
+            "was at",
+            "located in",
+            "located at",
+            "present in",
+            "present at",
+            "visited",
+            "near"
+        ):
+
+            add(
+                victim,
+                "located_at",
+                locations[0]
             )
 
-            target = clean_entity(
-                match.group(2)
-            )
-
-            # Try to resolve captured people
-            if relation_name in {
-                "met",
-                "saw",
-                "near",
-                "contacted",
-                "communicated_with",
-                "shared_phone"
-            }:
-
-                source = resolve_person(
-                    source,
-                    person_names
-                ) or source
-
-                target = resolve_person(
-                    target,
-                    person_names
-                ) or target
-
-            add_relation(
-                relations,
-                seen,
-                source,
-                target,
-                relation_name
-            )
-
     # ========================================================
-    # 4. REMOVE BAD GENERIC RELATIONS
+    # PERSON -> EVIDENCE
     # ========================================================
 
-    cleaned = []
+    if victim:
 
-    for relation in relations:
+        for entity in normalized_entities:
 
-        source = relation["source"]
-        target = relation["target"]
+            entity_value = entity["text"]
+            entity_type = entity["type"]
 
-        # Don't allow obvious sentence words as entities
-        bad_words = {
-            "the",
-            "this",
-            "that",
-            "however",
-            "therefore",
-            "bank",
-            "account",
-            "records",
-            "phone",
-            "mobile",
-            "cctv",
-            "transaction"
-        }
+            if entity_value == victim:
+                continue
 
-        if source.lower() in bad_words:
-            continue
+            if entity_value in locations:
+                continue
 
-        if target.lower() in bad_words:
-            continue
+            if entity_value == transaction:
+                continue
 
-        cleaned.append(relation)
+            if entity_value == money:
+                continue
+
+            if entity_value == ip_address:
+                continue
+
+            if entity_value == login_activity:
+                continue
+
+            # Only create relationship when the text
+            # contains a meaningful evidence keyword.
+            if entity_type == "EVIDENCE":
+
+                if has_phrase(
+                    "found",
+                    "recovered",
+                    "evidence",
+                    "linked",
+                    "connected",
+                    "associated"
+                ):
+
+                    add(
+                        victim,
+                        "linked_to",
+                        entity_value
+                    )
 
     # ========================================================
-    # 5. FINAL UNIQUE RELATIONS
+    # RETURN
     # ========================================================
 
-    final_relations = []
-    final_seen = set()
+    return relations
 
-    for relation in cleaned:
 
-        key = (
-            relation["source"].lower(),
-            relation["target"].lower(),
-            relation["relation"].lower()
-        )
+# ============================================================
+# BACKWARD-COMPATIBLE FUNCTION NAMES
+# ============================================================
 
-        if key in final_seen:
-            continue
+def extract_relationships(text, entities):
+    """
+    Backward-compatible alias.
+    """
 
-        final_relations.append(
-            relation
-        )
+    return extract_relations(
+        text,
+        entities
+    )
 
-        final_seen.add(key)
 
-    return final_relations
+def get_relations(text, entities):
+    """
+    Backward-compatible alias.
+    """
+
+    return extract_relations(
+        text,
+        entities
+    )

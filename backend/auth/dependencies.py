@@ -1,26 +1,45 @@
+"""
+Authentication Dependencies
+---------------------------
+
+FastAPI authentication dependencies for the
+AI Crime Investigator.
+
+This project uses:
+
+    SQLite
+       +
+    In-memory session tokens
+
+It does NOT use SQLAlchemy or JWT.
+"""
+
 from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from jose import JWTError, jwt
-
-from sqlalchemy.orm import Session
-
-from backend.database.database import get_db
-from backend.database.models import User
-from backend.auth.auth import SECRET_KEY, ALGORITHM
+from backend.auth.auth import get_session_user
+from backend.database.models import get_user_by_username
 
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/api/login"
+# ============================================================
+# BEARER AUTHENTICATION
+# ============================================================
+
+security = HTTPBearer(
+    auto_error=False
 )
 
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
+# ============================================================
+# AUTHENTICATION EXCEPTION
+# ============================================================
 
-    credentials_exception = HTTPException(
+def authentication_exception():
+    """
+    Return the standard authentication error.
+    """
+
+    return HTTPException(
         status_code=401,
         detail="Invalid or expired authentication token",
         headers={
@@ -28,28 +47,171 @@ def get_current_user(
         }
     )
 
-    try:
 
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM]
-        )
+# ============================================================
+# GET CURRENT USERNAME
+# ============================================================
 
-        user_id = payload.get("user_id")
+def get_current_username(
+    credentials: HTTPAuthorizationCredentials = Depends(
+        security
+    )
+):
+    """
+    Extract and validate the session token.
 
-        if user_id is None:
-            raise credentials_exception
+    Expected HTTP header:
 
-    except JWTError:
+        Authorization: Bearer <session_token>
 
-        raise credentials_exception
+    Returns:
 
-    user = db.query(User).filter(
-        User.id == user_id
-    ).first()
+        username
+
+    Raises:
+
+        401 if the token is missing or invalid.
+    """
+
+    # --------------------------------------------------------
+    # Check Authorization header.
+    # --------------------------------------------------------
+
+    if credentials is None:
+        raise authentication_exception()
+
+    # --------------------------------------------------------
+    # HTTPBearer already validates the scheme.
+    # --------------------------------------------------------
+
+    token = credentials.credentials
+
+    if not token:
+        raise authentication_exception()
+
+    # --------------------------------------------------------
+    # Find username associated with session token.
+    # --------------------------------------------------------
+
+    username = get_session_user(
+        token
+    )
+
+    if not username:
+        raise authentication_exception()
+
+    return username
+
+
+# ============================================================
+# GET CURRENT USER
+# ============================================================
+
+def get_current_user(
+    username: str = Depends(
+        get_current_username
+    )
+):
+    """
+    Get the complete user record from the database.
+
+    Returns:
+
+        sqlite3.Row
+
+    containing fields such as:
+
+        id
+        username
+        email
+        password_hash
+        two_factor_enabled
+        two_factor_secret
+        created_at
+    """
+
+    user = get_user_by_username(
+        username
+    )
 
     if user is None:
-        raise credentials_exception
+        raise authentication_exception()
 
     return user
+
+
+# ============================================================
+# OPTIONAL CURRENT USER
+# ============================================================
+
+def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(
+        security
+    )
+):
+    """
+    Optional authentication dependency.
+
+    Unlike get_current_user(), this does not raise an
+    error when the user is not logged in.
+
+    Returns:
+
+        user       -> authenticated user
+        None       -> no valid authentication
+    """
+
+    if credentials is None:
+        return None
+
+    token = credentials.credentials
+
+    if not token:
+        return None
+
+    username = get_session_user(
+        token
+    )
+
+    if not username:
+        return None
+
+    user = get_user_by_username(
+        username
+    )
+
+    return user
+
+
+# ============================================================
+# GET CURRENT SESSION TOKEN
+# ============================================================
+
+def get_current_token(
+    credentials: HTTPAuthorizationCredentials = Depends(
+        security
+    )
+):
+    """
+    Return the authenticated session token.
+
+    Useful for routes that need to explicitly remove
+    or invalidate the current session.
+    """
+
+    if credentials is None:
+        raise authentication_exception()
+
+    token = credentials.credentials
+
+    if not token:
+        raise authentication_exception()
+
+    username = get_session_user(
+        token
+    )
+
+    if not username:
+        raise authentication_exception()
+
+    return token
