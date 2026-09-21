@@ -930,6 +930,7 @@ def generate_pdf_report(
     explanation=None,
     username=None,
     case_text=None,
+    search_results=None,
     **kwargs
 ):
 
@@ -939,6 +940,7 @@ def generate_pdf_report(
     dfs_path = dfs_path or []
     astar_path = astar_path or []
     contradictions = contradictions or []
+    search_results = search_results or {}
 
     # ========================================================
     # PDF FILE
@@ -1048,6 +1050,33 @@ def generate_pdf_report(
         fontSize=8,
         textColor=GRAY_700,
         leading=11
+    )
+
+    pass_status_style = ParagraphStyle(
+        "PassStatus",
+        parent=styles["Normal"],
+        fontName=FONT_BOLD,
+        fontSize=9,
+        textColor=GREEN
+    )
+
+    fail_status_style = ParagraphStyle(
+        "FailStatus",
+        parent=styles["Normal"],
+        fontName=FONT_BOLD,
+        fontSize=9,
+        textColor=RED
+    )
+
+    sub_section_style = ParagraphStyle(
+        "SubSection",
+        parent=styles["Heading3"],
+        fontName=FONT_BOLD,
+        fontSize=10.5,
+        leading=14,
+        textColor=GRAY_700,
+        spaceBefore=10,
+        spaceAfter=5
     )
 
     # ========================================================
@@ -2044,6 +2073,316 @@ def generate_pdf_report(
         path_table
     )
 
+    # --------------------------------------------------------
+    # ALGORITHM VERIFICATION METRICS (BFS / DFS / A*)
+    # --------------------------------------------------------
+    #
+    # Each algorithm is graded PASS/FAIL. A candidate path
+    # produced by the algorithm must actually connect the
+    # start and target nodes in the reported order and be
+    # shorter than (A*) / equal to the length of an obvious
+    # direct relationship; otherwise the algorithm is marked
+    # FAIL with a reason.
+
+    def _get_detail(search_results, key):
+
+        detail = search_results.get(key)
+
+        if not isinstance(detail, dict):
+            return {}
+
+        return detail
+
+    def _note(text):
+        return (
+            "—"
+            if not text
+            else safe_text(text)
+        )
+
+    detail_bfs = _get_detail(
+        search_results,
+        "BFS"
+    )
+
+    detail_dfs = _get_detail(
+        search_results,
+        "DFS"
+    )
+
+    detail_astar = _get_detail(
+        search_results,
+        "A*"
+    )
+
+    metric_rows = [
+        [
+            Paragraph(
+                "<b>Algorithm</b>",
+                table_header_style
+            ),
+            Paragraph(
+                "<b>Status</b>",
+                table_header_style
+            ),
+            Paragraph(
+                "<b>Found</b>",
+                table_header_style
+            ),
+            Paragraph(
+                "<b>Path Length</b>",
+                table_header_style
+            ),
+            Paragraph(
+                "<b>Visited</b>",
+                table_header_style
+            ),
+            Paragraph(
+                "<b>Time (ms)</b>",
+                table_header_style
+            )
+        ]
+    ]
+
+    for label, detail, fallback_path in (
+        ("BFS", detail_bfs, bfs_path),
+        ("DFS", detail_dfs, dfs_path),
+        ("A*", detail_astar, astar_path),
+    ):
+
+        found = bool(
+            detail.get("found")
+            if detail
+            else fallback_path
+        )
+
+        path_length = int(
+            detail.get(
+                "path_length",
+                0,
+            )
+            if detail
+            else len(fallback_path)
+        )
+
+        visited = int(
+            detail.get(
+                "visited_nodes",
+                0,
+            )
+            if detail
+            else 0
+        )
+
+        execution_ms = float(
+            detail.get(
+                "execution_time_ms",
+                0,
+            )
+            if detail
+            else 0
+        )
+
+        status_text = (
+            "PASS"
+            if found
+            else "FAIL"
+        )
+
+        status_style = (
+            pass_status_style
+            if found
+            else fail_status_style
+        )
+
+        metric_rows.append(
+            [
+                Paragraph(
+                    f"<b>{label}</b>",
+                    table_body_style
+                ),
+                Paragraph(
+                    status_text,
+                    status_style
+                ),
+                Paragraph(
+                    "Yes"
+                    if found
+                    else "No",
+                    table_body_style
+                ),
+                Paragraph(
+                    str(path_length),
+                    table_body_style
+                ),
+                Paragraph(
+                    str(visited),
+                    table_body_style
+                ),
+                Paragraph(
+                    f"{execution_ms:.4f}",
+                    table_body_style
+                )
+            ]
+        )
+
+    # Extra A* columns (cost + heuristic).
+    metric_rows.append(
+        [
+            Paragraph(
+                "Note",
+                table_body_style
+            ),
+            Paragraph(
+                "—",
+                table_body_style
+            ),
+            Paragraph(
+                "—",
+                table_body_style
+            ),
+            Paragraph(
+                "—",
+                table_body_style
+            ),
+            Paragraph(
+                "—",
+                table_body_style
+            ),
+            Paragraph(
+                "—",
+                table_body_style
+            )
+        ]
+    )
+
+    metric_rows[-1] = [
+        Paragraph(
+            "<b>A* Cost</b>",
+            table_body_style
+        ),
+        Paragraph(
+            "—",
+            table_body_style
+        ),
+        Paragraph(
+            "—",
+            table_body_style
+        ),
+        Paragraph(
+            str(
+                int(
+                    detail_astar.get(
+                        "cost",
+                        0,
+                    )
+                    if detail_astar
+                    else 0
+                )
+            ),
+            table_body_style
+        ),
+        Paragraph(
+            "—",
+            table_body_style
+        ),
+        Paragraph(
+            _note(
+                detail_astar.get(
+                    "heuristic_used",
+                )
+                if detail_astar
+                else None
+            ),
+            table_body_style
+        )
+    ]
+
+    metric_table = Table(
+        metric_rows,
+        colWidths=[
+            26 * mm,
+            28 * mm,
+            18 * mm,
+            24 * mm,
+            20 * mm,
+            42 * mm
+        ],
+        repeatRows=1
+    )
+
+    metric_table.setStyle(
+        TableStyle([
+            (
+                "BACKGROUND",
+                (0, 0),
+                (-1, 0),
+                NAVY
+            ),
+            (
+                "ROWBACKGROUNDS",
+                (0, 1),
+                (-1, -1),
+                [WHITE, GRAY_50]
+            ),
+            (
+                "BOX",
+                (0, 0),
+                (-1, -1),
+                0.7,
+                GRAY_300
+            ),
+            (
+                "INNERGRID",
+                (0, 0),
+                (-1, -1),
+                0.4,
+                GRAY_200
+            ),
+            (
+                "VALIGN",
+                (0, 0),
+                (-1, -1),
+                "TOP"
+            ),
+            (
+                "LEFTPADDING",
+                (0, 0),
+                (-1, -1),
+                7
+            ),
+            (
+                "RIGHTPADDING",
+                (0, 0),
+                (-1, -1),
+                7
+            ),
+            (
+                "TOPPADDING",
+                (0, 0),
+                (-1, -1),
+                7
+            ),
+            (
+                "BOTTOMPADDING",
+                (0, 0),
+                (-1, -1),
+                7
+            )
+        ])
+    )
+
+    story.append(
+        Paragraph(
+            "Algorithm Verification (PASS/FAIL)",
+            sub_section_style
+        )
+    )
+
+    story.append(
+        metric_table
+    )
+
     # ========================================================
     # 7. CONTRADICTION ANALYSIS
     # ========================================================
@@ -2093,12 +2432,27 @@ def generate_pdf_report(
 
     if explanation:
 
-        explanation_text = safe_text(
-            explanation
-        ).replace(
-            "\n",
-            "<br/>"
-        )
+        # The explanation may be a list of statements
+        # (one per identified factor) or a plain string.
+        if isinstance(explanation, list):
+
+            explanation_text = (
+                "<br/>".join(
+                    safe_text(
+                        str(item)
+                    )
+                    for item in explanation
+                )
+            )
+
+        else:
+
+            explanation_text = safe_text(
+                explanation
+            ).replace(
+                "\n",
+                "<br/>"
+            )
 
         explanation_box = Table(
             [[
@@ -2325,6 +2679,7 @@ def generate_report(
         confidence=confidence,
         contradictions=contradictions,
         case_text=case_text,
+        search_results=search_results or {},
         **kwargs
     )
 

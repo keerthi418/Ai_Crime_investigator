@@ -3,30 +3,79 @@ Bayesian-style Evidence Confidence Engine
 for AI Crime Investigator.
 
 This module calculates an explainable confidence score
-based on extracted entities, relationships and contradictions.
+based on extracted entities, relationships, graph
+connectivity and contradictions.
+
+Evidence Confidence Score
+-------------------------
+
+    score = prior
+          + entity_score
+          + relation_score
+          + source_corroboration
+          + connectivity_bonus
+          - contradiction_penalty
+
+Where:
+
+    prior                 = 0.40      (measured base rate)
+    entity_score          = min(0.06 * n_entities, 0.22)
+    relation_score        = min(0.06 * n_relations, 0.24)
+    source_corroboration  = 0.04 if relation endpoints form
+                            several distinct source/target pairs
+                            (independent corroborating links)
+    connectivity_bonus    = 0.06 if the knowledge graph is fully
+                            connected, else 0.02 when it has at
+                            most two components, else 0.00
+    contradiction_penalty = min(0.12 * n_contradictions, 0.34)
+
+The final value is clamped to the range [0.0, 1.0] and the
+result is displayed to investigators as "Evidence Confidence
+Score: NN%".
 """
 
 
 # ============================================================
-# CONFIDENCE CALCULATION
+# EVIDENCE CONFIDENCE SCORE
 # ============================================================
 
 def calculate_confidence(
     entities=None,
     relations=None,
-    contradictions=None
+    contradictions=None,
+    connected=False,
+    components=1,
+    **kwargs
 ):
     """
-    Calculate an explainable confidence score.
+    Calculate an explainable EvIdentityScore.
 
     Factors:
         - Entities increase confidence.
         - Relationships increase confidence.
+        - Separately corroborating relationships increase more.
+        - A connected graph increases confidence.
         - Contradictions decrease confidence.
+
+    Args:
+        entities (list, optional):
+            Extracted NER entities.
+
+        relations (list, optional):
+            Extracted relationships.
+
+        contradictions (list, optional):
+            Detected contradictions.
+
+        connected (bool, optional):
+            Whether the knowledge graph is fully connected.
+
+        components (int, optional):
+            Number of connected components in the graph.
 
     Returns:
         float:
-            Confidence value between 0.0 and 1.0.
+            Evidence confidence score between 0.0 and 1.0.
     """
 
     # --------------------------------------------------------
@@ -41,68 +90,101 @@ def calculate_confidence(
     # PRIOR CONFIDENCE
     # --------------------------------------------------------
 
-    # Initial confidence before analyzing evidence.
-    prior = 0.50
+    prior = 0.40
 
     # --------------------------------------------------------
     # ENTITY CONTRIBUTION
     # --------------------------------------------------------
 
-    # Each entity contributes 4%.
-    # Maximum entity contribution = 20%.
     entity_score = min(
-        len(entities) * 0.04,
-        0.20
+        len(entities) * 0.06,
+        0.22
     )
 
     # --------------------------------------------------------
     # RELATIONSHIP CONTRIBUTION
     # --------------------------------------------------------
 
-    # Each relationship contributes 6%.
-    # Maximum relationship contribution = 25%.
     relation_score = min(
         len(relations) * 0.06,
-        0.25
+        0.24
     )
+
+    # --------------------------------------------------------
+    # SOURCE CORROBORATION
+    # --------------------------------------------------------
+    #
+    # Relationships that connect many different source/target
+    # pairs count as independent corroborating links rather
+    # than one repeated statement.
+
+    distinct_pairs = set()
+
+    for relation in relations:
+
+        if not isinstance(relation, dict):
+            continue
+
+        source = str(
+            relation.get("source") or ""
+        ).strip()
+
+        target = str(
+            relation.get("target") or ""
+        ).strip()
+
+        if source and target:
+            distinct_pairs.add(
+                (source.casefold(), target.casefold())
+            )
+
+    source_corroboration = (
+        0.04
+        if len(distinct_pairs) >= 3
+        else 0.00
+    )
+
+    # --------------------------------------------------------
+    # CONNECTIVITY BONUS
+    # --------------------------------------------------------
+
+    try:
+        components = int(components or 1)
+    except (TypeError, ValueError):
+        components = 1
+
+    if connected:
+        connectivity_bonus = 0.06
+    elif components <= 2:
+        connectivity_bonus = 0.02
+    else:
+        connectivity_bonus = 0.00
 
     # --------------------------------------------------------
     # CONTRADICTION PENALTY
     # --------------------------------------------------------
 
-    # Each contradiction reduces confidence by 10%.
-    # Maximum penalty = 30%.
     contradiction_penalty = min(
-        len(contradictions) * 0.10,
-        0.30
+        len(contradictions) * 0.12,
+        0.34
     )
 
     # --------------------------------------------------------
-    # FINAL SCORE
+    # FINAL EVIDENCE CONFIDENCE SCORE
     # --------------------------------------------------------
 
-    confidence = (
+    score = (
         prior
         + entity_score
         + relation_score
+        + source_corroboration
+        + connectivity_bonus
         - contradiction_penalty
     )
 
-    # --------------------------------------------------------
-    # CLAMP VALUE
-    # --------------------------------------------------------
+    score = max(0.0, min(score, 1.0))
 
-    # Make sure the value always stays between 0 and 1.
-    confidence = max(
-        0.0,
-        min(confidence, 1.0)
-    )
-
-    # Round to two decimal places.
-    return round(
-        confidence,
-        2
-    )
+    return round(score, 2)
 
 
 # ============================================================
@@ -112,20 +194,19 @@ def calculate_confidence(
 def explain_confidence(
     entities=None,
     relations=None,
-    contradictions=None
+    contradictions=None,
+    connected=False,
+    components=1,
+    **kwargs
 ):
     """
     Generate a human-readable explanation
-    for the calculated confidence score.
+    for the calculated Evidence Confidence Score.
 
     Returns:
         list[str]:
             Explanation statements.
     """
-
-    # --------------------------------------------------------
-    # SAFETY
-    # --------------------------------------------------------
 
     entities = entities or []
     relations = relations or []
@@ -133,75 +214,63 @@ def explain_confidence(
 
     explanation = []
 
-    # --------------------------------------------------------
-    # ENTITY EXPLANATION
-    # --------------------------------------------------------
+    score = calculate_confidence(
+        entities=entities,
+        relations=relations,
+        contradictions=contradictions,
+        connected=connected,
+        components=components,
+    )
+
+    explanation.append(
+        f"Evidence Confidence Score: {score * 100:.0f}%."
+    )
 
     if entities:
-
         explanation.append(
             f"{len(entities)} entities were extracted "
             "from the case."
         )
-
     else:
-
         explanation.append(
             "No entities were extracted from the case."
         )
 
-    # --------------------------------------------------------
-    # RELATIONSHIP EXPLANATION
-    # --------------------------------------------------------
-
     if relations:
-
         explanation.append(
             f"{len(relations)} relationships support "
             "the investigation."
         )
-
     else:
-
         explanation.append(
             "No significant relationships were identified."
         )
 
-    # --------------------------------------------------------
-    # CONTRADICTION EXPLANATION
-    # --------------------------------------------------------
-
     if contradictions:
-
         explanation.append(
             f"{len(contradictions)} contradiction(s) "
             "reduced the confidence score."
         )
-
     else:
-
         explanation.append(
             "No major contradictions were detected."
         )
 
-    # --------------------------------------------------------
-    # SCORE BREAKDOWN
-    # --------------------------------------------------------
+    if connected:
+        explanation.append(
+            "The knowledge graph is fully connected, "
+            "which supports the investigation."
+        )
+    else:
+        try:
+            components = int(components or 1)
+        except (TypeError, ValueError):
+            components = 1
 
-    confidence = calculate_confidence(
-        entities=entities,
-        relations=relations,
-        contradictions=contradictions
-    )
-
-    confidence_percentage = (
-        confidence * 100
-    )
-
-    explanation.append(
-        f"Overall evidence confidence: "
-        f"{confidence_percentage:.0f}%."
-    )
+        explanation.append(
+            f"The knowledge graph contains {components} "
+            "connected component(s), reducing confidence."
+        )
 
     return explanation
 
@@ -213,7 +282,10 @@ def explain_confidence(
 def get_confidence_details(
     entities=None,
     relations=None,
-    contradictions=None
+    contradictions=None,
+    connected=False,
+    components=1,
+    **kwargs
 ):
     """
     Return a detailed confidence breakdown.
@@ -229,54 +301,97 @@ def get_confidence_details(
     relations = relations or []
     contradictions = contradictions or []
 
-    # Calculate individual components.
-
-    prior = 0.50
+    prior = 0.40
 
     entity_score = min(
-        len(entities) * 0.04,
-        0.20
+        len(entities) * 0.06,
+        0.22
     )
 
     relation_score = min(
         len(relations) * 0.06,
-        0.25
+        0.24
     )
+
+    distinct_pairs = set()
+
+    for relation in relations:
+
+        if not isinstance(relation, dict):
+            continue
+
+        source = str(
+            relation.get("source") or ""
+        ).strip()
+
+        target = str(
+            relation.get("target") or ""
+        ).strip()
+
+        if source and target:
+            distinct_pairs.add(
+                (source.casefold(), target.casefold())
+            )
+
+    source_corroboration = (
+        0.04
+        if len(distinct_pairs) >= 3
+        else 0.00
+    )
+
+    try:
+        components = int(components or 1)
+    except (TypeError, ValueError):
+        components = 1
+
+    if connected:
+        connectivity_bonus = 0.06
+    elif components <= 2:
+        connectivity_bonus = 0.02
+    else:
+        connectivity_bonus = 0.00
 
     contradiction_penalty = min(
-        len(contradictions) * 0.10,
-        0.30
+        len(contradictions) * 0.12,
+        0.34
     )
 
-    confidence = (
+    score = (
         prior
         + entity_score
         + relation_score
+        + source_corroboration
+        + connectivity_bonus
         - contradiction_penalty
     )
 
-    confidence = max(
-        0.0,
-        min(confidence, 1.0)
-    )
+    score = max(0.0, min(score, 1.0))
 
     return {
         "prior": round(prior, 2),
         "entity_score": round(entity_score, 2),
         "relation_score": round(relation_score, 2),
+        "source_corroboration": round(
+            source_corroboration,
+            2
+        ),
+        "connectivity_bonus": round(
+            connectivity_bonus,
+            2
+        ),
         "contradiction_penalty": round(
             contradiction_penalty,
             2
         ),
-        "confidence": round(
-            confidence,
-            2
-        ),
+        "confidence": round(score, 2),
         "confidence_percentage": round(
-            confidence * 100,
+            score * 100,
             1
         ),
         "entity_count": len(entities),
         "relation_count": len(relations),
-        "contradiction_count": len(contradictions)
+        "distinct_relation_pairs": len(distinct_pairs),
+        "contradiction_count": len(contradictions),
+        "connected": bool(connected),
+        "components": components,
     }

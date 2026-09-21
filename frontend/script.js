@@ -2,6 +2,7 @@ const API = "http://127.0.0.1:8000/api";
 
 let currentUser = null;
 let lastInvestigation = null;
+let currentCaseReportFile = "";
 let graphInstance = null;
 let pending2FAChallenge = null;
 
@@ -134,22 +135,41 @@ function checkSystemHealth() {
     }
 
 
+    const healthUrl =
+        `${window.location.origin}/health`;
+
     fetch(
-        `${window.location.origin}/health`,
+        healthUrl,
         {
-            method: "GET"
+            method: "GET",
+            cache: "no-store"
         }
     )
         .then(response => {
+            return response
+                .json()
+                .catch(() => ({}))
+                .then(payload => ({
+                    payload,
+                    ok: response.ok
+                }));
+        })
+        .then(({ payload, ok }) => {
 
-            const online = response.ok;
-
+            const online =
+                ok &&
+                payload &&
+                payload.status === "ok";
 
             statusElement.classList.toggle(
                 "offline",
                 !online
             );
 
+            statusElement.classList.toggle(
+                "online",
+                online
+            );
 
             if (statusText) {
 
@@ -165,7 +185,6 @@ function checkSystemHealth() {
             statusElement.classList.add(
                 "offline"
             );
-
 
             if (statusText) {
 
@@ -1758,13 +1777,18 @@ function displayAlgorithms(
             ?.value
             .trim();
 
-    if (
-        !legacyStart &&
-        !legacyTarget
-    ) {
+    // The backend automatically selects a pair when the investigator
+    // does not provide one.  Do not hide algorithm results in that case.
+    const pair = results.algorithm_pair || {};
 
-        return;
-    }
+    const start = legacyStart || pair.start || "";
+    const target = legacyTarget || pair.target || "";
+
+    const startInput = document.getElementById("startNode");
+    const targetInput = document.getElementById("targetNode");
+
+    if (startInput && start) startInput.value = start;
+    if (targetInput && target) targetInput.value = target;
 
     const bfs =
         getSearchPath(
@@ -1791,6 +1815,10 @@ function displayAlgorithms(
         "bfsResult",
         formatPath(
             bfs
+        ) + metricSuffix(
+            results,
+            "BFS",
+            bfs
         )
     );
 
@@ -1798,6 +1826,10 @@ function displayAlgorithms(
     setText(
         "dfsResult",
         formatPath(
+            dfs
+        ) + metricSuffix(
+            results,
+            "DFS",
             dfs
         )
     );
@@ -1807,8 +1839,69 @@ function displayAlgorithms(
         "astarResult",
         formatPath(
             astar
+        ) + metricSuffix(
+            results,
+            "A*",
+            astar
         )
     );
+
+    setText(
+        "algorithmPairLabel",
+        start && target
+            ? `${start} → ${target}`
+            : "Automatic graph pair"
+    );
+
+}
+
+
+/* =========================================================
+   ALGORITHM METRIC SUFFIX
+========================================================= */
+
+function metricSuffix(
+    results,
+    algorithm,
+    path
+) {
+
+    if (!results) {
+        return "";
+    }
+
+    const detail = results[algorithm];
+
+    if (!detail || typeof detail !== "object" || Array.isArray(detail)) {
+        return "";
+    }
+
+    const parts = [];
+
+    if (typeof detail.path_length === "number") {
+        parts.push(`Length ${detail.path_length}`);
+    }
+
+    if (typeof detail.visited_nodes === "number") {
+        parts.push(`Visited ${detail.visited_nodes}`);
+    }
+
+    if (typeof detail.execution_time_ms === "number") {
+        parts.push(`${detail.execution_time_ms.toFixed(3)} ms`);
+    }
+
+    if (
+        algorithm === "A*" &&
+        typeof detail.cost === "number"
+    ) {
+        parts.push(`Cost ${detail.cost}`);
+    }
+
+    if (parts.length === 0) {
+        return "";
+    }
+
+    return `  ·  ${parts.join(" · ")}`;
 
 }
 
@@ -3972,9 +4065,11 @@ function renderGraph(
     ----------------------------------------------------- */
 
     const backendBfs =
-        lastInvestigation
-            ?.search_results
-            ?.BFS;
+        getSearchPath(
+            lastInvestigation
+                ?.search_results,
+            "BFS"
+        );
 
 
     if (
@@ -4964,24 +5059,22 @@ async function loadAuditLogs() {
 
 async function openReport() {
 
-    if (
-        !lastInvestigation ||
-        !lastInvestigation.report
-    ) {
+    const file =
+        lastInvestigation
+            ?.report
+            ?.file ||
+        currentCaseReportFile;
 
+    if (
+        !lastInvestigation &&
+        !currentCaseReportFile
+    ) {
         alert(
             "No report available."
         );
 
         return;
     }
-
-
-    const file =
-        lastInvestigation
-            .report
-            .file;
-
 
     if (!file) {
 
@@ -5221,6 +5314,19 @@ async function downloadReport() {
 
 
 /* =========================================================
+   SHOW ALL CASES
+========================================================= */
+
+function showAllCases() {
+    showPage("dashboard");
+    document.getElementById("caseManagementPanel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+}
+
+
+/* =========================================================
    CASE DASHBOARD
 ========================================================= */
 
@@ -5300,6 +5406,30 @@ async function loadCaseDashboard() {
                 stats.entities || 0
             );
 
+            setText(
+                "dashboardOngoing",
+                stats.ongoing || 0
+            );
+
+            setText(
+                "dashboardFinished",
+                stats.closed || 0
+            );
+
+            setText(
+                "dashboardNotFinished",
+                stats.not_finished || stats.ongoing || 0
+            );
+
+            setText(
+                "dashboardConfidence",
+                formatConfidence(stats.confidence || 0)
+            );
+
+            setText(
+                "dashboardContradictions",
+                stats.contradictions || 0
+            );
 
             setText(
                 "resultConfidence",
@@ -5469,6 +5599,20 @@ function renderCaseList(
 
 
                                 ${
+                                    !closed
+                                        ? `
+                                            <button
+                                                type="button"
+                                                class="primary-button case-investigate-button"
+                                                onclick="investigateExistingCase(${Number(caseItem.id)})"
+                                            >
+                                                🔎 Investigate
+                                            </button>
+                                          `
+                                        : ""
+                                }
+
+                                ${
                                     closed
                                         ? `
                                             <button
@@ -5515,6 +5659,56 @@ function renderCaseList(
             )
             .join("");
 
+}
+
+
+/* =========================================================
+   INVESTIGATE EXISTING CASE
+========================================================= */
+
+async function investigateExistingCase(id) {
+
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+        window.location.href = "/login.html";
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API}/cases/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const data = await safeJson(response);
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Could not load case.");
+        }
+
+        const caseData = data.case || {};
+        const caseNameInput = document.getElementById("caseName");
+        const caseTextInput = document.getElementById("caseText");
+
+        currentCaseReportFile = caseData.report_file || "";
+
+        if (caseNameInput) caseNameInput.value = caseData.case_name || "";
+        if (caseTextInput) caseTextInput.value = caseData.case_text || "";
+
+        showPage("investigation");
+
+        const message = document.getElementById("investigationMessage");
+        if (message) {
+            message.className = "message success";
+            message.textContent = `Case #${caseData.id} loaded. Click Run AI Investigation to execute the algorithms again.`;
+        }
+
+        document.getElementById("caseText")?.focus();
+
+    } catch (error) {
+        console.error("Existing case investigation error:", error);
+        alert(error.message);
+    }
 }
 
 
@@ -5798,6 +5992,10 @@ async function openCaseDetails(
             ).toUpperCase() ===
             "CLOSED";
 
+        currentCaseReportFile =
+            caseData.report_file ||
+            "";
+
 
         body.innerHTML = `
 
@@ -5929,6 +6127,29 @@ async function openCaseDetails(
                         caseData.contradictions_count ||
                         0
                     )}
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Report
+                </span>
+
+                <strong>
+                    ${
+                        caseData.report_file
+                            ? `<button
+                                type="button"
+                                class="btn primary small"
+                                onclick="openReport()"
+                            >
+                                View PDF Report
+                            </button>`
+                            : "No report generated"
+                    }
                 </strong>
 
             </div>

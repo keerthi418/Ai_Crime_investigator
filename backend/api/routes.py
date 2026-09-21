@@ -134,12 +134,14 @@ from backend.nlp.relation_extractor import (
 from backend.graph.case_graph_builder import (
     build_case_graph,
     graph_to_json,
+    get_graph_summary,
 )
 
 from backend.graph.graph_store import (
     bfs,
     dfs,
     astar,
+    run_search_details,
 )
 
 
@@ -150,6 +152,7 @@ from backend.graph.graph_store import (
 from backend.reasoning.bayesian import (
     calculate_confidence,
     explain_confidence,
+    get_confidence_details,
 )
 
 from backend.reasoning.csp import (
@@ -1506,35 +1509,86 @@ def run_investigation_pipeline(
     # SEARCH PARAMETERS
     # ========================================================
 
-    start = (
-        str(start).strip()
-        if start
-        else ""
-    )
+    start = str(start).strip() if start else ""
+    target = str(target).strip() if target else ""
 
-    target = (
-        str(target).strip()
-        if target
-        else ""
-    )
+    # The algorithms are a core part of the application, so they
+    # must not silently remain "Not run yet" just because the user
+    # did not manually select two nodes.  If the investigator did
+    # not provide a pair, automatically choose two distinct graph
+    # entities.  The selected pair is returned to the UI so it can
+    # be displayed and changed later.
+    graph_nodes = list(graph.nodes)
+
+    # Prefer meaningful investigative entities (especially people)
+    # over dates/times when selecting an automatic algorithm pair.
+    preferred_nodes = []
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        value = str(entity.get("text") or entity.get("label") or entity.get("name") or "").strip()
+        kind = str(entity.get("type") or "").upper()
+        if value and kind not in {"DATE", "TIME", "MONEY"} and value in graph.nodes:
+            preferred_nodes.append(value)
+
+    # If the investigator did not specify a pair, prefer an actual
+    # graph edge.  That guarantees the three search algorithms have
+    # a real path to evaluate in the demo instead of returning an
+    # empty result merely because two disconnected nodes were chosen.
+    if not start and not target and graph.number_of_edges() > 0:
+        preferred_set = {value.casefold() for value in preferred_nodes}
+        chosen_edge = None
+
+        for edge_source, edge_target in graph.edges():
+            if (
+                str(edge_source).casefold() in preferred_set
+                and str(edge_target).casefold() in preferred_set
+            ):
+                chosen_edge = (edge_source, edge_target)
+                break
+
+        if chosen_edge is None:
+            chosen_edge = next(iter(graph.edges()))
+
+        edge_source, edge_target = chosen_edge
+        start = str(edge_source)
+        target = str(edge_target)
+
+    if not start:
+        start = preferred_nodes[0] if preferred_nodes else (str(graph_nodes[0]) if graph_nodes else "")
+
+    if not target:
+        candidates = preferred_nodes or [str(node) for node in graph_nodes]
+        for node in candidates:
+            if str(node).casefold() != start.casefold():
+                target = str(node)
+                break
 
     # ========================================================
     # SEARCH
     # ========================================================
 
-    bfs_path = []
-    dfs_path = []
-    astar_path = []
+    # run_search_details() returns structured metrics for each
+    # algorithm:
+    #
+    #     {
+    #         "algorithm": "BFS",
+    #         "found": True,
+    #         "path": [...],
+    #         "path_length": 4,
+    #         "visited_nodes": 5,
+    #         "execution_time_ms": 0.123,
+    #     }
+    #
+    # A* also includes "cost" and "heuristic_used".
+
+    search_details = {}
 
     if start and target:
 
-        # ----------------------------------------------------
-        # BFS
-        # ----------------------------------------------------
-
         try:
 
-            bfs_path = bfs(
+            search_details = run_search_details(
                 graph,
                 start,
                 target,
@@ -1542,49 +1596,74 @@ def run_investigation_pipeline(
 
         except Exception:
 
-            bfs_path = []
+            search_details = {}
 
-        # ----------------------------------------------------
-        # DFS
-        # ----------------------------------------------------
+    bfs_path = (
+        (search_details.get("BFS") or {}).get("path")
+        or []
+    )
 
-        try:
+    dfs_path = (
+        (search_details.get("DFS") or {}).get("path")
+        or []
+    )
 
-            dfs_path = dfs(
-                graph,
-                start,
-                target,
-            )
-
-        except Exception:
-
-            dfs_path = []
-
-        # ----------------------------------------------------
-        # A*
-        # ----------------------------------------------------
-
-        try:
-
-            astar_path = astar(
-                graph,
-                start,
-                target,
-            )
-
-        except Exception:
-
-            astar_path = []
+    astar_path = (
+        (search_details.get("A*") or {}).get("path")
+        or []
+    )
 
     # ========================================================
     # SEARCH RESULTS
     # ========================================================
 
+    # The frontend reads search_results.algorithm_pair to
+    # display the automatically selected source/target pair.
     search_results = {
-        "BFS": bfs_path,
-        "DFS": dfs_path,
-        "A*": astar_path,
+        "BFS": search_details.get("BFS"),
+        "DFS": search_details.get("DFS"),
+        "A*": search_details.get("A*"),
+        "algorithm_pair": (
+            search_details.get("algorithm_pair")
+            or {
+                "start": start,
+                "target": target,
+            }
+        ),
+        "start": search_details.get("start") or start,
+        "target": search_details.get("target") or target,
     }
+
+    no_path_hint = (
+        f"No path exists between '{start}' and '{target}' "
+        "in the knowledge graph. The extracted graph may be "
+        "disconnected or one of the nodes is missing."
+    )
+
+    algorithm_status = {}
+
+    for algorithm in ("BFS", "DFS", "A*"):
+
+        detail = (
+            search_details.get(algorithm)
+            or {}
+        )
+
+        algorithm_status[algorithm] = (
+            "completed"
+            if detail.get("found")
+            else "no_path"
+        )
+
+    search_hint = (
+        "All three algorithms completed."
+        if (
+            algorithm_status["BFS"] == "completed"
+            and algorithm_status["DFS"] == "completed"
+            and algorithm_status["A*"] == "completed"
+        )
+        else no_path_hint
+    )
 
     # ========================================================
     # CSP
@@ -1604,15 +1683,37 @@ def run_investigation_pipeline(
         ]
 
     # ========================================================
+    # GRAPH SUMMARY (connectivity for confidence)
+    # ========================================================
+
+    try:
+
+        graph_summary = get_graph_summary(
+            graph
+        )
+
+    except Exception:
+
+        graph_summary = {
+            "nodes": len(entities),
+            "relationships": len(relations),
+            "connected": False,
+            "components": 1,
+            "maximum_node_degree": 0,
+        }
+
+    # ========================================================
     # BAYESIAN CONFIDENCE
     # ========================================================
 
     try:
 
         confidence = calculate_confidence(
-            entities,
-            relations,
-            contradictions,
+            entities=entities,
+            relations=relations,
+            contradictions=contradictions,
+            connected=graph_summary.get("connected"),
+            components=graph_summary.get("components"),
         )
 
     except Exception:
@@ -1626,9 +1727,11 @@ def run_investigation_pipeline(
     try:
 
         explanation = explain_confidence(
-            entities,
-            relations,
-            contradictions,
+            entities=entities,
+            relations=relations,
+            contradictions=contradictions,
+            connected=graph_summary.get("connected"),
+            components=graph_summary.get("components"),
         )
 
     except Exception as e:
@@ -1637,6 +1740,26 @@ def run_investigation_pipeline(
             "Confidence explanation unavailable: "
             f"{str(e)}"
         )
+
+    try:
+
+        confidence_details = get_confidence_details(
+            entities=entities,
+            relations=relations,
+            contradictions=contradictions,
+            connected=graph_summary.get("connected"),
+            components=graph_summary.get("components"),
+        )
+
+    except Exception:
+
+        confidence_details = {
+            "confidence": confidence,
+            "confidence_percentage": round(
+                float(confidence or 0) * 100,
+                1
+            ),
+        }
 
     # ========================================================
     # GRAPH JSON
@@ -1666,7 +1789,15 @@ def run_investigation_pipeline(
         "bfs_path": bfs_path,
         "dfs_path": dfs_path,
         "astar_path": astar_path,
+        "algorithm_status": algorithm_status,
+        "search_hint": search_hint,
+        "algorithm_pair": {
+            "start": start,
+            "target": target,
+        },
         "confidence": confidence,
+        "confidence_details": confidence_details,
+        "graph_summary": graph_summary,
         "contradictions": contradictions,
         "explanation": explanation,
         "start": start,
@@ -1803,6 +1934,22 @@ def investigate(
         "graph": result["graph_data"],
 
         "search_results": result["search_results"],
+
+        "algorithm_pair": result["algorithm_pair"],
+
+        "algorithm_status": result["algorithm_status"],
+
+        "search_hint": result["search_hint"],
+
+        "start": result["start"],
+
+        "target": result["target"],
+
+        "bfs_path": result["bfs_path"],
+
+        "dfs_path": result["dfs_path"],
+
+        "astar_path": result["astar_path"],
 
         "bayesian_confidence": result["confidence"],
 
@@ -2197,6 +2344,22 @@ async def investigate_excel(
 
         "search_results": result["search_results"],
 
+        "algorithm_pair": result["algorithm_pair"],
+
+        "algorithm_status": result["algorithm_status"],
+
+        "search_hint": result["search_hint"],
+
+        "start": result["start"],
+
+        "target": result["target"],
+
+        "bfs_path": result["bfs_path"],
+
+        "dfs_path": result["dfs_path"],
+
+        "astar_path": result["astar_path"],
+
         "bayesian_confidence": result["confidence"],
 
         "contradictions": result["contradictions"],
@@ -2319,7 +2482,7 @@ def list_cases(credentials: HTTPAuthorizationCredentials | None = Depends(securi
     try:
         cur=conn.cursor()
         cur.execute("""SELECT id, case_name title, status, entities_count, relations_count,
-                              confidence, contradictions_count, created_at, updated_at, closed_at
+                              confidence, contradictions_count, report_file, created_at, updated_at, closed_at
                        FROM investigation_cases WHERE username=? ORDER BY id DESC""", (user["username"],))
         return {"status":"success", "cases":[dict(x) for x in cur.fetchall()]}
     finally:

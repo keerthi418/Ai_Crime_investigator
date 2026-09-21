@@ -1927,3 +1927,29 @@ td {
 .case-detail-row span{color:var(--muted);font-size:12px;font-weight:700}
 .case-detail-row strong{font-size:13px;text-align:right}
 .case-detail-row a{color:var(--primary);text-decoration:none;font-weight:700}
+
+
+/* =========================================================
+   ALGORITHM-FIRST / CASE UI
+========================================================= */
+.stat-card-clickable { cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
+.stat-card-clickable:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(15,23,42,.10); }
+.algorithm-pair-label { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 12px; }
+.case-investigate-button { padding: 9px 13px; }
+.system-status.online { color: #15803d; }
+
+/* Make the login Forgot Password control use the same primary action styling. */
+.forgot-password-button {
+    width: 100%;
+    margin-top: 4px;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 16px;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(29, 78, 216, 0.18);
+    transition: .2s ease;
+}
+.forgot-password-button:hover { background: var(--primary-dark); transform: translateY(-1px); }

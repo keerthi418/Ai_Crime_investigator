@@ -176,10 +176,15 @@ def script_js():
 def health_check():
     """
     Simple server health check.
+
+    Returns:
+
+        {"status": "ok", ...}
     """
 
     return {
-        "status": "online",
+        "status": "ok",
         "application": "AI Crime Investigator",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "message": "Server is running",
     }

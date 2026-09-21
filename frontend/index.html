@@ -77,6 +77,16 @@
             <button
                 type="button"
                 class="nav-item"
+                onclick="showAllCases()"
+            >
+                <span class="nav-icon">🗂️</span>
+                <span>All Cases</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
                 onclick="showPage('activity', this)"
             >
                 <span class="nav-icon">📋</span>
@@ -252,7 +262,7 @@
 
             <div class="statistics-grid">
 
-<div class="stat-card">
+<div class="stat-card stat-card-clickable" onclick="showAllCases()" role="button" tabindex="0" title="Show all cases">
 
                         <div class="stat-icon blue">
                             📁
@@ -501,7 +511,7 @@
 
             <!-- CASE MANAGEMENT -->
 
-            <div class="panel case-management-panel">
+            <div id="caseManagementPanel" class="panel case-management-panel">
 
                 <div class="panel-header">
 
@@ -1177,9 +1187,12 @@
                             </h3>
 
                             <p>
-                                Find a relationship path between
-                                the selected entities.
+                                Find relationship paths automatically using BFS, DFS and A*.
                             </p>
+
+                            <div class="algorithm-pair-label">
+                                Active pair: <strong id="algorithmPairLabel">Automatic graph pair</strong>
+                            </div>
 
                         </div>
 

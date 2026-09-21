@@ -45,6 +45,55 @@ KNOWN_LOCATIONS = {
 
 
 # ============================================================
+# GENERIC LOCATION TERMS
+# ============================================================
+#
+# Case descriptions often refer to smaller premises such as
+# a "server room" or "office" that are not conventional cities.
+# These are detected case-insensitively and added as LOCATION
+# entities so the investigation graph stays connected.
+
+GENERIC_LOCATIONS = {
+    "server room": "Server Room",
+    "server rooms": "Server Room",
+    "data center": "Data Center",
+    "data centre": "Data Center",
+    "control room": "Control Room",
+    "storage room": "Storage Room",
+    "office": "Office",
+    "business office": "Office",
+    "main office": "Office",
+    "warehouse": "Warehouse",
+    "reception": "Reception",
+    "reception area": "Reception",
+    "lobby": "Lobby",
+    "parking lot": "Parking Lot",
+    "car park": "Car Park",
+    "laboratory": "Laboratory",
+    "lab": "Laboratory",
+    "canteen": "Canteen",
+    "cafeteria": "Cafeteria",
+    "godown": "Godown",
+    "vault": "Vault",
+    "cash counter": "Cash Counter",
+}
+
+
+# ============================================================
+# ORGANIZATION KEYWORDS
+# ============================================================
+
+ORGANIZATION_KEYWORDS = (
+    "Technologies|Technology|Industries|Industry|Corporation|Corp"
+    "|Inc|Limited|Ltd|Private|Pvt|Company|Co|Group|Enterprises"
+    "|Solutions|Systems|Services|Consulting|Labs|Laboratories"
+    "|Associates|Partners|Holdings|Ventures|Bank|Hotel|Resort"
+    "|Hospital|Clinic|College|University|Institute|School|Temple"
+    "|Trust|Foundation|NGO|Media|Publishing"
+)
+
+
+# ============================================================
 # EVIDENCE TERMS
 # ============================================================
 
@@ -194,6 +243,36 @@ MONTHS = (
 
 
 # ============================================================
+# SLUGIFY
+# ============================================================
+
+def slugify(text):
+    """
+    Convert entity text into a stable lowercase identifier.
+
+    Example:
+
+        CCTV Camera 03  ->  cctv_camera_03
+        Server Room     ->  server_room
+        Rahul Kumar     ->  rahul_kumar
+    """
+
+    text = str(text or "").strip()
+
+    when = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        text.lower()
+    )
+
+    return re.sub(
+        r"_+",
+        "_",
+        when
+    ).strip("_")
+
+
+# ============================================================
 # ADD ENTITY
 # ============================================================
 
@@ -211,6 +290,14 @@ def add_entity(
         Ravi Kumar -> PERSON
         Chennai -> LOCATION
         CCTV -> EVIDENCE
+
+    Every entity receives a stable identifier:
+
+        {
+            "text": "Ravi Kumar",
+            "type": "PERSON",
+            "id": "person:ravi_kumar"
+        }
     """
 
     if text is None:
@@ -233,10 +320,16 @@ def add_entity(
     if key in seen:
         return
 
+    entity_id = (
+        f"{entity_type.lower()}:"
+        f"{slugify(text)}"
+    )
+
     entities.append(
         {
             "text": text,
-            "type": entity_type
+            "type": entity_type,
+            "id": entity_id,
         }
     )
 
@@ -397,6 +490,91 @@ def extract_entities(text: str):
                 location,
                 "LOCATION"
             )
+
+    # ========================================================
+    # 2B. GENERIC LOCATION EXTRACTION
+    # ========================================================
+
+    # Detect premises such as "server room" and "office" that
+    # are described using common English words.  Longer phrases
+    # are matched first to avoid partial matches.
+
+    for phrase, display_name in sorted(
+        GENERIC_LOCATIONS.items(),
+        key=lambda item: len(item[0]),
+        reverse=True
+    ):
+
+        pattern = (
+            r"\b"
+            + re.escape(phrase)
+            + r"\b"
+        )
+
+        if re.search(
+            pattern,
+            text,
+            re.IGNORECASE
+        ):
+
+            add_entity(
+                entities,
+                seen,
+                display_name,
+                "LOCATION"
+            )
+
+    # ========================================================
+    # 2C. ORGANIZATION EXTRACTION
+    # ========================================================
+
+    organization_pattern = (
+        r"\b"
+        r"[A-Z][A-Za-z]{1,}"
+        r"(?:\s+[A-Z][A-Za-z]{1,})*"
+        r"\s+(?:"
+        + ORGANIZATION_KEYWORDS
+        + r")\b"
+    )
+
+    organizations = re.findall(
+        organization_pattern,
+        text
+    )
+
+    common_first_words = {
+        "the",
+        "a",
+        "an",
+    }
+
+    for organization in organizations:
+
+        # Ignore phrases starting with common words.
+        first_word = (
+            str(organization).split()[0].casefold()
+            if organization.split()
+            else ""
+        )
+
+        if first_word in common_first_words:
+            continue
+
+        # An organization must not already be a person.
+        if any(
+            entity["type"] == "PERSON"
+            and organization.casefold()
+            == entity["text"].casefold()
+            for entity in entities
+        ):
+            continue
+
+        add_entity(
+            entities,
+            seen,
+            organization,
+            "ORGANIZATION"
+        )
 
     # ========================================================
     # 3. PERSON EXTRACTION
@@ -571,11 +749,8 @@ def extract_entities(text: str):
     # ========================================================
 
     time_patterns = [
-        # 10:32 PM
+        # 10:32 PM  /  10:32am  (capture the full AM/PM time)
         r"\b\d{1,2}:\d{2}\s?(?:AM|PM)\b",
-
-        # 22:32
-        r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b",
     ]
 
     for pattern in time_patterns:
@@ -594,6 +769,33 @@ def extract_entities(text: str):
                 time_value,
                 "TIME"
             )
+
+    # --------------------------------------------------------
+    # Bare 24-hour / hour:minute times (22:32, 8:30).
+    # A negative lookahead prevents re-matching the clock
+    # portion of an AM/PM time such as "8:30 PM", which would
+    # otherwise create duplicate nodes "8:30 PM" and "8:30".
+    # --------------------------------------------------------
+
+    bare_time_pattern = (
+        r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b"
+        r"(?!\s*[AaPp][Mm]\b)"
+    )
+
+    bare_time_matches = re.findall(
+        bare_time_pattern,
+        text,
+        re.IGNORECASE
+    )
+
+    for time_value in bare_time_matches:
+
+        add_entity(
+            entities,
+            seen,
+            time_value,
+            "TIME"
+        )
 
     # ========================================================
     # 8. EVIDENCE EXTRACTION
@@ -642,6 +844,60 @@ def extract_entities(text: str):
             display_name,
             "EVIDENCE"
         )
+
+    # ========================================================
+    # 8B. SPECIFIC EVIDENCE / ASSET ITEMS
+    # ========================================================
+    #
+    # Detect named physical items such as "CCTV Camera 03" and
+    # access-card codes such as "RC-1045" so the investigation
+    # graph contains concrete evidence nodes instead of only
+    # the generic CCT cards.
+
+    specific_evidence_patterns = [
+
+        # CCTV Camera 03 / Video camera 07
+        r"\b(?:CCTV|video|video surveillance)\s+"
+        r"[Cc]amera\s+[0-9]{1,3}\b",
+
+        # Camera 03 / Camera#3
+        r"\b[Cc]amera\s*(?:[Nn]o\.?\s*|[#-])?\s*[0-9]{1,3}\b",
+
+        # Access / ID card codes such as RC-1045
+        r"\b[A-Z]{2,6}-\d{2,6}\b",
+    ]
+
+    for pattern in specific_evidence_patterns:
+
+        matches = re.findall(
+            pattern,
+            text,
+            re.IGNORECASE
+        )
+
+        for evidence_item in matches:
+
+            evidence_item = str(
+                evidence_item
+            ).strip()
+
+            # Normalise common phrasing.
+            if re.search(
+                r"\baccess\s+card\b",
+                evidence_item,
+                re.IGNORECASE
+            ) and not re.search(
+                r"\d",
+                evidence_item
+            ):
+                continue
+
+            add_entity(
+                entities,
+                seen,
+                evidence_item,
+                "EVIDENCE"
+            )
 
     # ========================================================
     # 9. ONLINE BANKING
@@ -864,6 +1120,18 @@ def extract_entities(text: str):
         for word in IGNORED_PERSON_WORDS
     }
 
+    # When a specific CCTV camera device such as "CCTV Camera 03"
+    # was detected, drop the redundant generic camera nodes
+    # ("CCTV", "Camera", "Camera 03") so the graph stays clean.
+    has_specific_cctv = any(
+        entity["type"] == "EVIDENCE"
+        and re.search(
+            r"CCTV\s+[Cc]amera\s+\d{1,3}\b",
+            entity["text"]
+        )
+        for entity in entities
+    )
+
     for entity in entities:
 
         entity_text = entity["text"]
@@ -887,6 +1155,24 @@ def extract_entities(text: str):
             if (
                 entity_text.casefold()
                 in obvious_non_persons
+            ):
+                continue
+
+        # ----------------------------------------------------
+        # Redundant camera nodes
+        # ----------------------------------------------------
+
+        if (
+            entity_type == "EVIDENCE"
+            and has_specific_cctv
+        ):
+
+            if entity_text in {"CCTV", "Camera"}:
+                continue
+
+            if re.fullmatch(
+                r"[Cc]amera\s*\d{1,3}",
+                entity_text
             ):
                 continue
 
