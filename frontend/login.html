@@ -8,15 +8,16 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>Design and Development of AI Crime Investigator - Login</title>
+    <title>AI Crime Investigator - Login</title>
 
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+
+<!-- =========================================================
+     AUTHENTICATION PAGE
+========================================================= -->
 
 <div class="auth-page">
 
@@ -31,7 +32,7 @@
         </div>
 
         <h1>
-            Design and Development of AI Crime Investigator
+            AI Crime Investigator
         </h1>
 
         <p class="brand-subtitle">
@@ -47,46 +48,68 @@
 
         </div>
 
+
+        <!-- SECURITY FEATURES -->
+
         <div class="security-features">
 
             <div class="security-feature">
+
                 <span>🧠</span>
+
                 <div>
                     <strong>AI Reasoning</strong>
+
                     <small>
                         Intelligent case analysis
                     </small>
                 </div>
+
             </div>
 
+
             <div class="security-feature">
+
                 <span>🔗</span>
+
                 <div>
                     <strong>Knowledge Graph</strong>
+
                     <small>
                         Discover entity relationships
                     </small>
                 </div>
+
             </div>
 
+
             <div class="security-feature">
+
                 <span>🔐</span>
+
                 <div>
                     <strong>Secure Investigation</strong>
+
                     <small>
                         Authentication and 2FA protection
                     </small>
                 </div>
+
             </div>
 
+
             <div class="security-feature">
+
                 <span>📊</span>
+
                 <div>
                     <strong>Evidence Analysis</strong>
+
                     <small>
                         Structured investigation reports
                     </small>
                 </div>
+
             </div>
 
         </div>
@@ -95,12 +118,14 @@
 
 
     <!-- =====================================================
-         RIGHT AUTH SECTION
+         RIGHT LOGIN SECTION
     ====================================================== -->
 
     <section class="auth-container">
 
         <div class="auth-card">
+
+            <!-- HEADER -->
 
             <div class="auth-header">
 
@@ -128,6 +153,8 @@
                 class="auth-form"
             >
 
+                <!-- EMAIL -->
+
                 <div class="form-group">
 
                     <label for="loginEmail">
@@ -144,6 +171,8 @@
 
                 </div>
 
+
+                <!-- PASSWORD -->
 
                 <div class="form-group">
 
@@ -165,6 +194,7 @@
                             type="button"
                             class="password-toggle"
                             onclick="togglePassword('loginPassword', this)"
+                            aria-label="Show password"
                         >
                             Show
                         </button>
@@ -174,11 +204,17 @@
                 </div>
 
 
+                <!-- LOGIN MESSAGE -->
+
                 <div
                     id="loginMessage"
                     class="message"
+                    role="alert"
+                    aria-live="polite"
                 ></div>
 
+
+                <!-- SIGN IN -->
 
                 <button
                     type="submit"
@@ -187,6 +223,8 @@
                     Sign In
                 </button>
 
+
+                <!-- FORGOT PASSWORD -->
 
                 <button
                     type="button"
@@ -199,9 +237,7 @@
             </form>
 
 
-            <!-- =================================================
-                 DIVIDER
-            ================================================== -->
+            <!-- DIVIDER -->
 
             <div class="auth-divider">
 
@@ -212,9 +248,7 @@
             </div>
 
 
-            <!-- =================================================
-                 REGISTER BUTTON
-            ================================================== -->
+            <!-- REGISTER -->
 
             <button
                 type="button"
@@ -233,7 +267,7 @@
 
 <!-- =========================================================
      REGISTER MODAL
-========================================================== -->
+========================================================= -->
 
 <div
     id="registerModal"
@@ -246,6 +280,7 @@
             type="button"
             class="modal-close"
             onclick="hideRegister()"
+            aria-label="Close registration"
         >
             ×
         </button>
@@ -273,6 +308,8 @@
             class="auth-form"
         >
 
+            <!-- USERNAME -->
+
             <div class="form-group">
 
                 <label for="registerUsername">
@@ -284,11 +321,15 @@
                     id="registerUsername"
                     placeholder="Enter username"
                     autocomplete="username"
+                    minlength="3"
+                    maxlength="50"
                     required
                 >
 
             </div>
 
+
+            <!-- EMAIL -->
 
             <div class="form-group">
 
@@ -307,6 +348,8 @@
             </div>
 
 
+            <!-- PASSWORD -->
+
             <div class="form-group">
 
                 <label for="registerPassword">
@@ -320,6 +363,7 @@
                         id="registerPassword"
                         placeholder="Minimum 8 characters"
                         autocomplete="new-password"
+                        minlength="8"
                         required
                     >
 
@@ -327,6 +371,7 @@
                         type="button"
                         class="password-toggle"
                         onclick="togglePassword('registerPassword', this)"
+                        aria-label="Show password"
                     >
                         Show
                     </button>
@@ -336,11 +381,17 @@
             </div>
 
 
+            <!-- MESSAGE -->
+
             <div
                 id="registerMessage"
                 class="message"
+                role="alert"
+                aria-live="polite"
             ></div>
 
+
+            <!-- CREATE ACCOUNT -->
 
             <button
                 type="submit"
@@ -349,6 +400,8 @@
                 Create Account
             </button>
 
+
+            <!-- CANCEL -->
 
             <button
                 type="button"
@@ -367,7 +420,7 @@
 
 <!-- =========================================================
      LOGIN 2FA MODAL
-========================================================== -->
+========================================================= -->
 
 <div
     id="twoFALoginModal"
@@ -415,6 +468,8 @@
         <div
             id="login2FAMessage"
             class="message"
+            role="alert"
+            aria-live="polite"
         ></div>
 
 
@@ -430,7 +485,7 @@
         <button
             type="button"
             class="secondary-button full-width"
-            onclick="document.getElementById('twoFALoginModal').classList.add('hidden')"
+            onclick="closeTwoFALoginModal()"
         >
             Cancel
         </button>
@@ -442,7 +497,7 @@
 
 <!-- =========================================================
      FORGOT PASSWORD MODAL
-========================================================== -->
+========================================================= -->
 
 <div
     id="forgotPasswordModal"
@@ -455,6 +510,7 @@
             type="button"
             class="modal-close"
             onclick="hideForgotPassword()"
+            aria-label="Close password reset"
         >
             ×
         </button>
@@ -477,7 +533,9 @@
         </div>
 
 
-        <!-- REQUEST RESET -->
+        <!-- =================================================
+             REQUEST RESET TOKEN
+        ================================================== -->
 
         <div class="form-group">
 
@@ -489,6 +547,7 @@
                 type="email"
                 id="forgotEmail"
                 placeholder="Enter your registered email"
+                autocomplete="email"
             >
 
         </div>
@@ -506,10 +565,14 @@
         <div
             id="forgotMessage"
             class="message"
+            role="alert"
+            aria-live="polite"
         ></div>
 
 
-        <!-- RESET FORM -->
+        <!-- =================================================
+             RESET PASSWORD FORM
+        ================================================== -->
 
         <form
             id="resetForm"
@@ -522,6 +585,8 @@
             </h3>
 
 
+            <!-- TOKEN -->
+
             <div class="form-group">
 
                 <label for="resetToken">
@@ -531,11 +596,14 @@
                 <input
                     type="text"
                     id="resetToken"
-                    placeholder="Reset token"
+                    placeholder="Enter reset token"
+                    autocomplete="off"
                 >
 
             </div>
 
+
+            <!-- NEW PASSWORD -->
 
             <div class="form-group">
 
@@ -543,14 +611,31 @@
                     New Password
                 </label>
 
-                <input
-                    type="password"
-                    id="resetNewPassword"
-                    placeholder="Minimum 8 characters"
-                >
+                <div class="password-wrapper">
+
+                    <input
+                        type="password"
+                        id="resetNewPassword"
+                        placeholder="Minimum 8 characters"
+                        autocomplete="new-password"
+                        minlength="8"
+                    >
+
+                    <button
+                        type="button"
+                        class="password-toggle"
+                        onclick="togglePassword('resetNewPassword', this)"
+                        aria-label="Show password"
+                    >
+                        Show
+                    </button>
+
+                </div>
 
             </div>
 
+
+            <!-- CONFIRM PASSWORD -->
 
             <div class="form-group">
 
@@ -558,14 +643,31 @@
                     Confirm Password
                 </label>
 
-                <input
-                    type="password"
-                    id="resetConfirmPassword"
-                    placeholder="Confirm new password"
-                >
+                <div class="password-wrapper">
+
+                    <input
+                        type="password"
+                        id="resetConfirmPassword"
+                        placeholder="Confirm new password"
+                        autocomplete="new-password"
+                        minlength="8"
+                    >
+
+                    <button
+                        type="button"
+                        class="password-toggle"
+                        onclick="togglePassword('resetConfirmPassword', this)"
+                        aria-label="Show password"
+                    >
+                        Show
+                    </button>
+
+                </div>
 
             </div>
 
+
+            <!-- RESET -->
 
             <button
                 type="submit"
@@ -576,6 +678,8 @@
 
         </form>
 
+
+        <!-- CLOSE -->
 
         <button
             type="button"
@@ -589,6 +693,10 @@
 
 </div>
 
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================= -->
 
 <script src="script.js"></script>
 

@@ -1,6 +1,7 @@
 """
-Database Models
----------------
+============================================================
+DATABASE MODELS
+============================================================
 
 Database operations for the AI Crime Investigator.
 
@@ -11,6 +12,9 @@ This module handles:
     - Password updates
     - Two-Factor Authentication (2FA)
     - Password reset tokens
+    - Password reset token validation
+    - Password reset token consumption
+    - Password reset token invalidation
 """
 
 from backend.database.database import get_connection
@@ -33,10 +37,15 @@ def create_user(
         None    -> creation failed
     """
 
+    username = str(username).strip()
+    email = str(email).strip().lower()
+
+    if not username or not email or not password_hash:
+        return None
+
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -61,13 +70,10 @@ def create_user(
         return cursor.lastrowid
 
     except Exception:
-
         connection.rollback()
-
         return None
 
     finally:
-
         connection.close()
 
 
@@ -84,10 +90,11 @@ def get_user_by_username(username):
         None        -> user not found
     """
 
+    username = str(username).strip()
+
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -103,7 +110,6 @@ def get_user_by_username(username):
         return cursor.fetchone()
 
     finally:
-
         connection.close()
 
 
@@ -120,10 +126,11 @@ def get_user_by_email(email):
         None        -> user not found
     """
 
+    email = str(email).strip().lower()
+
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -139,7 +146,6 @@ def get_user_by_email(email):
         return cursor.fetchone()
 
     finally:
-
         connection.close()
 
 
@@ -159,7 +165,6 @@ def get_user_by_id(user_id):
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -175,7 +180,6 @@ def get_user_by_id(user_id):
         return cursor.fetchone()
 
     finally:
-
         connection.close()
 
 
@@ -192,13 +196,15 @@ def update_password(
 
     Returns:
         True  -> password updated
-        False -> user not found
+        False -> update failed/user not found
     """
+
+    if not user_id or not password_hash:
+        return False
 
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -218,13 +224,10 @@ def update_password(
         return cursor.rowcount > 0
 
     except Exception:
-
         connection.rollback()
-
         return False
 
     finally:
-
         connection.close()
 
 
@@ -238,7 +241,6 @@ def get_2fa_status(user_id):
 
     Returns:
         sqlite3.Row containing:
-
             two_factor_enabled
             two_factor_secret
 
@@ -248,7 +250,6 @@ def get_2fa_status(user_id):
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -266,7 +267,6 @@ def get_2fa_status(user_id):
         return cursor.fetchone()
 
     finally:
-
         connection.close()
 
 
@@ -286,7 +286,6 @@ def get_2fa_secret(user_id):
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -307,7 +306,6 @@ def get_2fa_secret(user_id):
         return user["two_factor_secret"]
 
     finally:
-
         connection.close()
 
 
@@ -330,13 +328,12 @@ def set_2fa(
 
     Returns:
         True  -> update successful
-        False -> user not found
+        False -> update failed
     """
 
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         if secret is not None:
@@ -375,13 +372,10 @@ def set_2fa(
         return cursor.rowcount > 0
 
     except Exception:
-
         connection.rollback()
-
         return False
 
     finally:
-
         connection.close()
 
 
@@ -389,21 +383,18 @@ def set_2fa(
 # DISABLE 2FA AND CLEAR SECRET
 # ============================================================
 
-def disable_2fa(
-    user_id
-):
+def disable_2fa(user_id):
     """
     Disable 2FA and remove the stored secret.
 
     Returns:
         True  -> successful
-        False -> user not found/error
+        False -> error/user not found
     """
 
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -422,13 +413,10 @@ def disable_2fa(
         return cursor.rowcount > 0
 
     except Exception:
-
         connection.rollback()
-
         return False
 
     finally:
-
         connection.close()
 
 
@@ -452,10 +440,12 @@ def create_reset_token(
         False -> failed
     """
 
+    if not user_id or not token_hash or not expires_at:
+        return False
+
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         # ----------------------------------------------------
@@ -482,9 +472,10 @@ def create_reset_token(
             (
                 user_id,
                 token_hash,
-                expires_at
+                expires_at,
+                used
             )
-            VALUES (?, ?, ?)
+            VALUES (?, ?, ?, 0)
             """,
             (
                 user_id,
@@ -498,13 +489,10 @@ def create_reset_token(
         return True
 
     except Exception:
-
         connection.rollback()
-
         return False
 
     finally:
-
         connection.close()
 
 
@@ -516,18 +504,25 @@ def get_reset_token(token_hash):
     """
     Find an active password-reset token.
 
-    Important:
-        This function does NOT consume the token.
+    IMPORTANT:
+        This function DOES NOT consume the token.
+
+    The caller can use this function to check:
+        - token exists
+        - token has not been used
+        - token has not expired
 
     Returns:
-        sqlite3.Row -> valid unused token
-        None        -> token not found
+        sqlite3.Row -> token found
+        None        -> token not found/already used
     """
+
+    if not token_hash:
+        return None
 
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -544,7 +539,6 @@ def get_reset_token(token_hash):
         return cursor.fetchone()
 
     finally:
-
         connection.close()
 
 
@@ -559,19 +553,25 @@ def consume_reset_token(
     Find an unused password-reset token and mark it
     as used.
 
+    IMPORTANT:
+        This should only be called AFTER the caller has
+        verified that the token has not expired.
+
     Returns:
         sqlite3.Row -> successfully consumed token
         None        -> token doesn't exist/already used
     """
 
+    if not token_hash:
+        return None
+
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         # ----------------------------------------------------
-        # Find token
+        # Find unused token
         # ----------------------------------------------------
 
         cursor.execute(
@@ -604,11 +604,10 @@ def consume_reset_token(
             (token["id"],)
         )
 
-        # Make sure the token was actually consumed.
+        # Make sure token was actually consumed.
+
         if cursor.rowcount == 0:
-
             connection.rollback()
-
             return None
 
         connection.commit()
@@ -616,13 +615,10 @@ def consume_reset_token(
         return token
 
     except Exception:
-
         connection.rollback()
-
         return None
 
     finally:
-
         connection.close()
 
 
@@ -642,10 +638,12 @@ def invalidate_reset_tokens(
         False -> error
     """
 
+    if not user_id:
+        return False
+
     connection = get_connection()
 
     try:
-
         cursor = connection.cursor()
 
         cursor.execute(
@@ -663,11 +661,8 @@ def invalidate_reset_tokens(
         return True
 
     except Exception:
-
         connection.rollback()
-
         return False
 
     finally:
-
         connection.close()

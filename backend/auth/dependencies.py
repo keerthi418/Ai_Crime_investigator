@@ -5,20 +5,40 @@ Authentication Dependencies
 FastAPI authentication dependencies for the
 AI Crime Investigator.
 
-This project uses:
+Authentication architecture:
 
-    SQLite
-       +
-    In-memory session tokens
+    FastAPI
+       |
+       v
+    HTTP Bearer Token
+       |
+       v
+    In-Memory Session Store
+       |
+       v
+    SQLite User Database
 
-It does NOT use SQLAlchemy or JWT.
+This project does NOT use:
+
+    - JWT
+    - SQLAlchemy
+    - OAuth
+    - External authentication frameworks
 """
 
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
 
-from backend.auth.auth import get_session_user
-from backend.database.models import get_user_by_username
+from backend.auth.auth import (
+    get_session_user,
+)
+
+from backend.database.models import (
+    get_user_by_username,
+)
 
 
 # ============================================================
@@ -34,9 +54,12 @@ security = HTTPBearer(
 # AUTHENTICATION EXCEPTION
 # ============================================================
 
-def authentication_exception():
+def authentication_exception() -> HTTPException:
     """
-    Return the standard authentication error.
+    Create the standard authentication error.
+
+    HTTP 401 means the request does not contain
+    valid authentication credentials.
     """
 
     return HTTPException(
@@ -49,6 +72,38 @@ def authentication_exception():
 
 
 # ============================================================
+# EXTRACT BEARER TOKEN
+# ============================================================
+
+def _extract_token(
+    credentials: HTTPAuthorizationCredentials
+):
+    """
+    Safely extract the Bearer token.
+
+    Returns:
+
+        token -> valid-looking token
+        None  -> missing/invalid credentials
+    """
+
+    if credentials is None:
+        return None
+
+    token = credentials.credentials
+
+    if token is None:
+        return None
+
+    token = str(token).strip()
+
+    if not token:
+        return None
+
+    return token
+
+
+# ============================================================
 # GET CURRENT USERNAME
 # ============================================================
 
@@ -56,9 +111,10 @@ def get_current_username(
     credentials: HTTPAuthorizationCredentials = Depends(
         security
     )
-):
+) -> str:
     """
-    Extract and validate the session token.
+    Validate the Bearer session token and return
+    the authenticated username.
 
     Expected HTTP header:
 
@@ -70,28 +126,16 @@ def get_current_username(
 
     Raises:
 
-        401 if the token is missing or invalid.
+        HTTP 401 if the token is missing,
+        invalid, or expired.
     """
 
-    # --------------------------------------------------------
-    # Check Authorization header.
-    # --------------------------------------------------------
-
-    if credentials is None:
-        raise authentication_exception()
-
-    # --------------------------------------------------------
-    # HTTPBearer already validates the scheme.
-    # --------------------------------------------------------
-
-    token = credentials.credentials
+    token = _extract_token(
+        credentials
+    )
 
     if not token:
         raise authentication_exception()
-
-    # --------------------------------------------------------
-    # Find username associated with session token.
-    # --------------------------------------------------------
 
     username = get_session_user(
         token
@@ -113,13 +157,14 @@ def get_current_user(
     )
 ):
     """
-    Get the complete user record from the database.
+    Get the complete authenticated user record
+    from the SQLite database.
 
     Returns:
 
         sqlite3.Row
 
-    containing fields such as:
+    Typical fields include:
 
         id
         username
@@ -128,7 +173,15 @@ def get_current_user(
         two_factor_enabled
         two_factor_secret
         created_at
+
+    Raises:
+
+        HTTP 401 if the session is valid but the
+        corresponding database user no longer exists.
     """
+
+    if not username:
+        raise authentication_exception()
 
     user = get_user_by_username(
         username
@@ -152,19 +205,18 @@ def get_optional_current_user(
     """
     Optional authentication dependency.
 
-    Unlike get_current_user(), this does not raise an
-    error when the user is not logged in.
+    Unlike get_current_user(), this function does NOT
+    raise an exception when the user is not authenticated.
 
     Returns:
 
-        user       -> authenticated user
-        None       -> no valid authentication
+        user -> authenticated database user
+        None -> no valid authentication
     """
 
-    if credentials is None:
-        return None
-
-    token = credentials.credentials
+    token = _extract_token(
+        credentials
+    )
 
     if not token:
         return None
@@ -191,22 +243,31 @@ def get_current_token(
     credentials: HTTPAuthorizationCredentials = Depends(
         security
     )
-):
+) -> str:
     """
-    Return the authenticated session token.
+    Return the currently authenticated session token.
 
-    Useful for routes that need to explicitly remove
-    or invalidate the current session.
+    Useful for routes such as:
+
+        - Logout
+        - Session invalidation
+        - Security operations
+
+    Raises:
+
+        HTTP 401 if the token is missing,
+        invalid, or expired.
     """
 
-    if credentials is None:
-        raise authentication_exception()
-
-    token = credentials.credentials
+    token = _extract_token(
+        credentials
+    )
 
     if not token:
         raise authentication_exception()
 
+    # Validate that the token actually belongs
+    # to an active session.
     username = get_session_user(
         token
     )
@@ -215,3 +276,35 @@ def get_current_token(
         raise authentication_exception()
 
     return token
+
+
+# ============================================================
+# GET CURRENT USERNAME FROM TOKEN
+# ============================================================
+
+def get_username_from_token(
+    token: str
+):
+    """
+    Utility function for internal application code.
+
+    Returns:
+
+        username -> valid session
+        None     -> invalid/expired session
+
+    This function does not raise HTTP exceptions,
+    making it useful outside FastAPI dependency injection.
+    """
+
+    if not token:
+        return None
+
+    token = str(token).strip()
+
+    if not token:
+        return None
+
+    return get_session_user(
+        token
+    )

@@ -236,6 +236,7 @@ class InvestigationRequest(BaseModel):
     text: str
     start_node: str = ""
     target_node: str = ""
+    case_name: str = ""
 
 
 # ============================================================
@@ -1757,13 +1758,31 @@ def investigate(
         )
 
     # ========================================================
+    # SAVE CASE AS ONGOING
+    # ========================================================
+
+    case_name = request.case_name.strip() or f"Investigation {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    connection = get_connection()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("""INSERT INTO investigation_cases
+            (case_name,case_text,username,status,entities_count,relations_count,confidence,contradictions_count,report_file)
+            VALUES (?,?,?,?,?,?,?,?,?)""",
+            (case_name,case_text,username,"ONGOING",len(result["entities"]),len(result["relations"]),
+             float(result["confidence"] or 0),len(result["contradictions"]),report_file))
+        case_id=cursor.lastrowid
+        connection.commit()
+    finally:
+        connection.close()
+
+    # ========================================================
     # ACTIVITY LOG
     # ========================================================
 
     log_activity(
         username,
         "INVESTIGATION",
-        "Crime investigation executed.",
+        f"Crime investigation executed. Case {case_id} created as ONGOING.",
     )
 
     # ========================================================
@@ -1772,6 +1791,10 @@ def investigate(
 
     return {
         "status": "success",
+
+        "case_id": case_id,
+
+        "case_name": case_name,
 
         "entities": result["entities"],
 
@@ -2191,6 +2214,154 @@ async def investigate_excel(
             ),
         },
     }
+
+
+
+# ============================================================
+# CASE MANAGEMENT
+# ============================================================
+
+@router.get("/dashboard/stats")
+def dashboard_stats(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    """Return dashboard statistics for the authenticated investigator."""
+
+    user, _ = get_authenticated_user(credentials)
+    username = user["username"]
+
+    conn = get_connection()
+
+    try:
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN UPPER(TRIM(COALESCE(status, ''))) = 'ONGOING'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ) AS ongoing,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN UPPER(TRIM(COALESCE(status, ''))) = 'CLOSED'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ) AS closed,
+                COALESCE(SUM(entities_count), 0) AS entities,
+                COALESCE(SUM(relations_count), 0) AS relations,
+                COALESCE(AVG(confidence), 0) AS confidence,
+                COALESCE(SUM(contradictions_count), 0) AS contradictions
+            FROM investigation_cases
+            WHERE username = ?
+            """,
+            (username,),
+        )
+
+        row = cur.fetchone()
+        data = dict(row) if row else {}
+
+        total = int(data.get("total") or 0)
+        ongoing = int(data.get("ongoing") or 0)
+        closed = int(data.get("closed") or 0)
+
+        cur.execute(
+            """
+            SELECT
+                substr(created_at, 1, 10) AS day,
+                COUNT(*) AS count
+            FROM investigation_cases
+            WHERE
+                username = ?
+                AND created_at >= datetime('now', '-6 days')
+            GROUP BY substr(created_at, 1, 10)
+            ORDER BY day
+            """,
+            (username,),
+        )
+
+        daily = [dict(item) for item in cur.fetchall()]
+
+        return {
+            "status": "success",
+            "total": total,
+            "ongoing": ongoing,
+            "closed": closed,
+            "not_finished": ongoing,
+            "entities": int(data.get("entities") or 0),
+            "relations": int(data.get("relations") or 0),
+            "confidence": round(
+                float(data.get("confidence") or 0),
+                2,
+            ),
+            "contradictions": int(
+                data.get("contradictions") or 0
+            ),
+            "daily": daily,
+        }
+
+    finally:
+        conn.close()
+
+@router.get("/cases")
+def list_cases(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    user, _ = get_authenticated_user(credentials)
+    conn=get_connection()
+    try:
+        cur=conn.cursor()
+        cur.execute("""SELECT id, case_name title, status, entities_count, relations_count,
+                              confidence, contradictions_count, created_at, updated_at, closed_at
+                       FROM investigation_cases WHERE username=? ORDER BY id DESC""", (user["username"],))
+        return {"status":"success", "cases":[dict(x) for x in cur.fetchall()]}
+    finally:
+        conn.close()
+
+
+@router.get("/cases/{case_id}")
+def get_case(case_id:int, credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    user,_=get_authenticated_user(credentials); conn=get_connection()
+    try:
+        cur=conn.cursor(); cur.execute("SELECT * FROM investigation_cases WHERE id=? AND username=?",(case_id,user["username"]))
+        row=cur.fetchone()
+        if not row: raise HTTPException(404,"Case not found.")
+        return {"status":"success","case":dict(row)}
+    finally: conn.close()
+
+
+@router.patch("/cases/{case_id}/status")
+def update_case_status(case_id:int, payload:dict, credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    user,_=get_authenticated_user(credentials); status=str(payload.get("status","")).upper()
+    if status not in {"ONGOING","CLOSED"}: raise HTTPException(400,"Status must be ONGOING or CLOSED.")
+    conn=get_connection()
+    try:
+        cur=conn.cursor(); cur.execute("SELECT id FROM investigation_cases WHERE id=? AND username=?",(case_id,user["username"]))
+        if not cur.fetchone(): raise HTTPException(404,"Case not found.")
+        closed_at=datetime.now().isoformat() if status=="CLOSED" else None
+        cur.execute("UPDATE investigation_cases SET status=?, updated_at=CURRENT_TIMESTAMP, closed_at=? WHERE id=? AND username=?",(status,closed_at,case_id,user["username"]))
+        conn.commit()
+        log_activity(user["username"],"CASE_STATUS_CHANGED",f"Case {case_id} changed to {status}.")
+        return {"status":"success","case_status":status}
+    finally: conn.close()
+
+
+@router.delete("/cases/{case_id}")
+def delete_case(case_id:int, credentials: HTTPAuthorizationCredentials | None = Depends(security)):
+    user,_=get_authenticated_user(credentials); conn=get_connection()
+    try:
+        cur=conn.cursor(); cur.execute("DELETE FROM investigation_cases WHERE id=? AND username=?",(case_id,user["username"]))
+        if cur.rowcount==0: raise HTTPException(404,"Case not found.")
+        conn.commit(); log_activity(user["username"],"CASE_DELETED",f"Case {case_id} deleted.")
+        return {"status":"success","message":"Case deleted successfully."}
+    finally: conn.close()
 
 
 # ============================================================

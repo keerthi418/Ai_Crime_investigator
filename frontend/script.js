@@ -15,11 +15,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const token = localStorage.getItem("access_token");
     const page = window.location.pathname.split("/").pop();
 
+    /* -----------------------------------------------------
+       Authentication check
+    ----------------------------------------------------- */
+
     if (token) {
         loadCurrentUser();
     } else if (page === "index.html" || page === "") {
         window.location.href = "login.html";
+        return;
     }
+
+
+    /* -----------------------------------------------------
+       Login / Register
+    ----------------------------------------------------- */
 
     const loginForm = document.getElementById("loginForm");
 
@@ -27,35 +37,145 @@ document.addEventListener("DOMContentLoaded", () => {
         loginForm.addEventListener("submit", login);
     }
 
+
     const registerForm = document.getElementById("registerForm");
 
     if (registerForm) {
         registerForm.addEventListener("submit", register);
     }
 
-    const startNodeInput = document.getElementById("startNode");
-    const targetNodeInput = document.getElementById("targetNode");
+
+    /* -----------------------------------------------------
+       Enter key for graph source / target
+    ----------------------------------------------------- */
+
+    const startNodeInput =
+        document.getElementById("startNode");
+
+    const targetNodeInput =
+        document.getElementById("targetNode");
+
 
     if (startNodeInput) {
-        startNodeInput.addEventListener("keydown", event => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                runSelectedAlgorithm("BFS");
+
+        startNodeInput.addEventListener(
+            "keydown",
+            event => {
+
+                if (event.key === "Enter") {
+
+                    event.preventDefault();
+
+                    runSelectedAlgorithm("BFS");
+                }
             }
-        });
+        );
     }
+
 
     if (targetNodeInput) {
-        targetNodeInput.addEventListener("keydown", event => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                runSelectedAlgorithm("BFS");
+
+        targetNodeInput.addEventListener(
+            "keydown",
+            event => {
+
+                if (event.key === "Enter") {
+
+                    event.preventDefault();
+
+                    runSelectedAlgorithm("BFS");
+                }
             }
-        });
+        );
     }
 
-    setInvestigationStatus("closed");
+
+    /* -----------------------------------------------------
+       Initial UI
+    ----------------------------------------------------- */
+
+    setInvestigationStatus("ongoing");
+
+    initSettingsAccordion();
+
+    checkSystemHealth();
+
+    setInterval(
+        checkSystemHealth,
+        30000
+    );
+
+
+    if (token) {
+        loadCaseDashboard();
+        load2FAStatus();
+    }
+
 });
+
+
+/* =========================================================
+   SYSTEM HEALTH
+========================================================= */
+
+function checkSystemHealth() {
+
+    const statusElement =
+        document.querySelector(".system-status");
+
+    const statusText =
+        document.getElementById(
+            "systemStatusText"
+        );
+
+
+    if (!statusElement) {
+        return;
+    }
+
+
+    fetch(
+        `${window.location.origin}/health`,
+        {
+            method: "GET"
+        }
+    )
+        .then(response => {
+
+            const online = response.ok;
+
+
+            statusElement.classList.toggle(
+                "offline",
+                !online
+            );
+
+
+            if (statusText) {
+
+                statusText.textContent =
+                    online
+                        ? "System Online"
+                        : "System Offline";
+            }
+
+        })
+        .catch(() => {
+
+            statusElement.classList.add(
+                "offline"
+            );
+
+
+            if (statusText) {
+
+                statusText.textContent =
+                    "System Offline";
+            }
+
+        });
+
+}
 
 
 /* =========================================================
@@ -66,11 +186,19 @@ async function login(event) {
 
     event.preventDefault();
 
+
     const email =
-        document.getElementById("loginEmail")?.value.trim();
+        document
+            .getElementById("loginEmail")
+            ?.value
+            .trim();
+
 
     const password =
-        document.getElementById("loginPassword")?.value;
+        document
+            .getElementById("loginPassword")
+            ?.value;
+
 
     if (!email || !password) {
 
@@ -83,43 +211,51 @@ async function login(event) {
         return;
     }
 
+
     showMessage(
         "loginMessage",
         "Signing in...",
         "success"
     );
 
+
     try {
 
-        const response = await fetch(
-            `${API}/auth/login`,
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                `${API}/auth/login`,
+                {
+                    method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                body: JSON.stringify({
-                    email: email,
-                    password: password
-                })
-            }
-        );
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                }
+            );
 
-        const data = await safeJson(response);
+
+        const data =
+            await safeJson(response);
+
 
         if (!response.ok) {
 
             throw new Error(
-                data.detail || "Login failed."
+                data.detail ||
+                "Login failed."
             );
         }
 
 
-        /* =================================================
+        /* -------------------------------------------------
            2FA REQUIRED
-        ================================================= */
+        ------------------------------------------------- */
 
         if (
             data.requires_2fa ||
@@ -129,14 +265,32 @@ async function login(event) {
             pending2FAChallenge =
                 data.challenge_token;
 
+
             const modal =
                 document.getElementById(
                     "twoFALoginModal"
                 );
 
+
             if (modal) {
-                modal.classList.remove("hidden");
+
+                modal.classList.remove(
+                    "hidden"
+                );
             }
+
+
+            const codeInput =
+                document.getElementById(
+                    "login2FACode"
+                );
+
+
+            if (codeInput) {
+
+                codeInput.focus();
+            }
+
 
             showMessage(
                 "loginMessage",
@@ -144,22 +298,14 @@ async function login(event) {
                 "success"
             );
 
-            const codeInput =
-                document.getElementById(
-                    "login2FACode"
-                );
-
-            if (codeInput) {
-                codeInput.focus();
-            }
 
             return;
         }
 
 
-        /* =================================================
+        /* -------------------------------------------------
            NORMAL LOGIN
-        ================================================= */
+        ------------------------------------------------- */
 
         if (data.token) {
 
@@ -167,15 +313,21 @@ async function login(event) {
                 "access_token",
                 data.token
             );
+
         }
+
 
         if (data.user) {
 
             localStorage.setItem(
                 "user",
-                JSON.stringify(data.user)
+                JSON.stringify(
+                    data.user
+                )
             );
+
         }
+
 
         showMessage(
             "loginMessage",
@@ -183,15 +335,25 @@ async function login(event) {
             "success"
         );
 
-        setTimeout(() => {
-            window.location.href = "index.html";
-        }, 500);
+
+        setTimeout(
+            () => {
+
+                window.location.href = "/";
+
+            },
+            500
+        );
+
 
     }
-
     catch (error) {
 
-        console.error("Login error:", error);
+        console.error(
+            "Login error:",
+            error
+        );
+
 
         showMessage(
             "loginMessage",
@@ -199,6 +361,7 @@ async function login(event) {
             "error"
         );
     }
+
 }
 
 
@@ -208,17 +371,22 @@ async function login(event) {
 
 async function verifyLogin2FA() {
 
-    const codeElement =
-        document.getElementById("login2FACode");
+    const codeInput =
+        document.getElementById(
+            "login2FACode"
+        );
 
-    if (!codeElement) {
+
+    if (!codeInput) {
         return;
     }
 
-    const code =
-        codeElement.value.trim();
 
-    if (!code || !/^\d{6}$/.test(code)) {
+    const code =
+        codeInput.value.trim();
+
+
+    if (!/^\d{6}$/.test(code)) {
 
         showMessage(
             "login2FAMessage",
@@ -228,6 +396,7 @@ async function verifyLogin2FA() {
 
         return;
     }
+
 
     if (!pending2FAChallenge) {
 
@@ -240,27 +409,33 @@ async function verifyLogin2FA() {
         return;
     }
 
+
     try {
 
-        const response = await fetch(
-            `${API}/auth/2fa/verify`,
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                `${API}/auth/2fa/verify`,
+                {
+                    method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                body: JSON.stringify({
-                    challenge_token:
-                        pending2FAChallenge,
+                    body: JSON.stringify({
+                        challenge_token:
+                            pending2FAChallenge,
 
-                    code: code
-                })
-            }
-        );
+                        code: code
+                    })
+                }
+            );
 
-        const data = await safeJson(response);
+
+        const data =
+            await safeJson(response);
+
 
         if (!response.ok) {
 
@@ -270,6 +445,7 @@ async function verifyLogin2FA() {
             );
         }
 
+
         if (data.token) {
 
             localStorage.setItem(
@@ -278,15 +454,20 @@ async function verifyLogin2FA() {
             );
         }
 
+
         if (data.user) {
 
             localStorage.setItem(
                 "user",
-                JSON.stringify(data.user)
+                JSON.stringify(
+                    data.user
+                )
             );
         }
 
+
         pending2FAChallenge = null;
+
 
         showMessage(
             "login2FAMessage",
@@ -294,15 +475,18 @@ async function verifyLogin2FA() {
             "success"
         );
 
-        setTimeout(() => {
 
-            window.location.href =
-                "index.html";
+        setTimeout(
+            () => {
 
-        }, 500);
+                window.location.href =
+                    "index.html";
+
+            },
+            500
+        );
 
     }
-
     catch (error) {
 
         console.error(
@@ -310,12 +494,14 @@ async function verifyLogin2FA() {
             error
         );
 
+
         showMessage(
             "login2FAMessage",
             error.message,
             "error"
         );
     }
+
 }
 
 
@@ -327,22 +513,38 @@ async function register(event) {
 
     event.preventDefault();
 
+
     const username =
         document
-            .getElementById("registerUsername")
-            ?.value.trim();
+            .getElementById(
+                "registerUsername"
+            )
+            ?.value
+            .trim();
+
 
     const email =
         document
-            .getElementById("registerEmail")
-            ?.value.trim();
+            .getElementById(
+                "registerEmail"
+            )
+            ?.value
+            .trim();
+
 
     const password =
         document
-            .getElementById("registerPassword")
+            .getElementById(
+                "registerPassword"
+            )
             ?.value;
 
-    if (!username || !email || !password) {
+
+    if (
+        !username ||
+        !email ||
+        !password
+    ) {
 
         showMessage(
             "registerMessage",
@@ -353,16 +555,24 @@ async function register(event) {
         return;
     }
 
-    if (password.length < 8) {
+
+    const passwordError =
+        passwordStrengthError(
+            password
+        );
+
+
+    if (passwordError) {
 
         showMessage(
             "registerMessage",
-            "Password must contain at least 8 characters.",
+            passwordError,
             "error"
         );
 
         return;
     }
+
 
     showMessage(
         "registerMessage",
@@ -370,26 +580,39 @@ async function register(event) {
         "success"
     );
 
+
     try {
 
-        const response = await fetch(
-            `${API}/auth/register`,
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                `${API}/auth/register`,
+                {
+                    method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                body: JSON.stringify({
-                    username: username,
-                    email: email,
-                    password: password
-                })
-            }
-        );
+                    body: JSON.stringify({
 
-        const data = await safeJson(response);
+                        username:
+                            username,
+
+                        email:
+                            email,
+
+                        password:
+                            password
+
+                    })
+                }
+            );
+
+
+        const data =
+            await safeJson(response);
+
 
         if (!response.ok) {
 
@@ -399,25 +622,36 @@ async function register(event) {
             );
         }
 
+
         showMessage(
             "registerMessage",
             "Account created successfully. You can now login.",
             "success"
         );
 
+
         const form =
-            document.getElementById("registerForm");
+            document.getElementById(
+                "registerForm"
+            );
+
 
         if (form) {
             form.reset();
         }
 
-        setTimeout(() => {
-            hideRegister();
-        }, 1500);
+
+        setTimeout(
+            () => {
+
+                hideRegister();
+
+            },
+            1500
+        );
+
 
     }
-
     catch (error) {
 
         console.error(
@@ -425,12 +659,14 @@ async function register(event) {
             error
         );
 
+
         showMessage(
             "registerMessage",
             error.message,
             "error"
         );
     }
+
 }
 
 
@@ -441,7 +677,10 @@ async function register(event) {
 async function loadCurrentUser() {
 
     const token =
-        localStorage.getItem("access_token");
+        localStorage.getItem(
+            "access_token"
+        );
+
 
     if (!token) {
 
@@ -450,6 +689,7 @@ async function loadCurrentUser() {
 
         return;
     }
+
 
     try {
 
@@ -460,11 +700,13 @@ async function loadCurrentUser() {
                     method: "GET",
 
                     headers: {
-                        "Authorization":
+
+                        Authorization:
                             `Bearer ${token}`
                     }
                 }
             );
+
 
         if (!response.ok) {
 
@@ -476,30 +718,43 @@ async function loadCurrentUser() {
             return;
         }
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         currentUser =
             data.user;
 
+
         updateUserUI();
 
-        loadAuditLogs();
+
+        await loadAuditLogs();
+
+
+        await loadCaseDashboard();
+
+
+        await load2FAStatus();
 
     }
-
     catch (error) {
 
         console.error(
             "Current user error:",
             error
         );
+
     }
+
 }
 
 
 /* =========================================================
-   UPDATE USER UI
+   UPDATE USER INTERFACE
 ========================================================= */
 
 function updateUserUI() {
@@ -508,13 +763,17 @@ function updateUserUI() {
         return;
     }
 
+
     const username =
-        currentUser.username || "";
+        currentUser.username ||
+        "Investigator";
+
 
     const initial =
         username
             .charAt(0)
             .toUpperCase();
+
 
     const elements = {
 
@@ -541,19 +800,28 @@ function updateUserUI() {
 
         profileAvatar:
             initial
+
     };
 
-    Object.keys(elements).forEach(id => {
+
+    Object.keys(
+        elements
+    ).forEach(id => {
 
         const element =
-            document.getElementById(id);
+            document.getElementById(
+                id
+            );
+
 
         if (element) {
 
             element.textContent =
                 elements[id];
         }
+
     });
+
 }
 
 
@@ -564,7 +832,10 @@ function updateUserUI() {
 async function logout() {
 
     const token =
-        localStorage.getItem("access_token");
+        localStorage.getItem(
+            "access_token"
+        );
+
 
     try {
 
@@ -573,30 +844,38 @@ async function logout() {
             await fetch(
                 `${API}/auth/logout`,
                 {
-                    method: "POST",
+                    method:
+                        "POST",
 
                     headers: {
-                        "Authorization":
+
+                        Authorization:
                             `Bearer ${token}`
                     }
                 }
             );
+
         }
 
     }
-
     catch (error) {
 
         console.error(
             "Logout error:",
             error
         );
+
     }
+
 
     localStorage.clear();
 
+    sessionStorage.clear();
+
+
     window.location.href =
         "login.html";
+
 }
 
 
@@ -604,7 +883,10 @@ async function logout() {
    PAGE NAVIGATION
 ========================================================= */
 
-function showPage(pageName, button) {
+function showPage(
+    pageName,
+    button = null
+) {
 
     document
         .querySelectorAll(".page")
@@ -613,19 +895,24 @@ function showPage(pageName, button) {
             page.classList.remove(
                 "active-page"
             );
+
         });
+
 
     const page =
         document.getElementById(
             pageName + "Page"
         );
 
+
     if (page) {
 
         page.classList.add(
             "active-page"
         );
+
     }
+
 
     document
         .querySelectorAll(".nav-item")
@@ -634,14 +921,47 @@ function showPage(pageName, button) {
             item.classList.remove(
                 "active"
             );
+
         });
+
 
     if (button) {
 
         button.classList.add(
             "active"
         );
+
     }
+    else {
+
+        const matchingButton =
+            [...document.querySelectorAll(
+                ".nav-item"
+            )].find(item => {
+
+                return (
+                    item
+                        .getAttribute(
+                            "onclick"
+                        )
+                        ?.includes(
+                            `'${pageName}'`
+                        )
+                );
+
+            });
+
+
+        if (matchingButton) {
+
+            matchingButton.classList.add(
+                "active"
+            );
+
+        }
+
+    }
+
 
     const titles = {
 
@@ -659,27 +979,54 @@ function showPage(pageName, button) {
 
         settings:
             "Account Settings"
+
     };
+
 
     const title =
         document.getElementById(
             "pageTitle"
         );
 
+
     if (title) {
 
         title.textContent =
             titles[pageName] ||
             "AI Crime Investigator";
+
     }
 
-    if (pageName === "activity") {
+
+    if (
+        pageName ===
+        "activity"
+    ) {
+
         loadAuditLogs();
+
     }
 
-    if (pageName === "settings") {
-        load2FAStatus();
+
+    if (
+        pageName ===
+        "dashboard"
+    ) {
+
+        loadCaseDashboard();
+
     }
+
+
+    if (
+        pageName ===
+        "settings"
+    ) {
+
+        load2FAStatus();
+
+    }
+
 }
 
 
@@ -694,10 +1041,12 @@ function openInvestigation() {
             ".nav-item:nth-child(2)"
         );
 
+
     showPage(
         "investigation",
         button
     );
+
 }
 
 
@@ -705,40 +1054,55 @@ function openInvestigation() {
    INVESTIGATION STATUS
 ========================================================= */
 
-function setInvestigationStatus(status) {
+function setInvestigationStatus(
+    status
+) {
 
-    const statusElement =
+    const element =
         document.getElementById(
             "investigationStatus"
         );
 
-    if (!statusElement) {
+
+    if (!element) {
         return;
     }
 
-    statusElement.classList.remove(
+
+    element.classList.remove(
         "ongoing",
         "closed"
     );
 
-    if (status === "ongoing") {
 
-        statusElement.textContent =
+    if (
+        String(
+            status
+        ).toLowerCase() ===
+        "ongoing"
+    ) {
+
+        element.textContent =
             "● INVESTIGATION ONGOING";
 
-        statusElement.classList.add(
+
+        element.classList.add(
             "ongoing"
         );
 
-    } else {
+    }
+    else {
 
-        statusElement.textContent =
+        element.textContent =
             "● INVESTIGATION CLOSED";
 
-        statusElement.classList.add(
+
+        element.classList.add(
             "closed"
         );
+
     }
+
 }
 
 
@@ -750,18 +1114,39 @@ async function runInvestigation() {
 
     const text =
         document
-            .getElementById("caseText")
-            ?.value.trim();
+            .getElementById(
+                "caseText"
+            )
+            ?.value
+            .trim();
+
+
+    const caseName =
+        document
+            .getElementById(
+                "caseName"
+            )
+            ?.value
+            .trim() || "";
+
 
     const startNode =
         document
-            .getElementById("startNode")
-            ?.value.trim();
+            .getElementById(
+                "startNode"
+            )
+            ?.value
+            .trim() || "";
+
 
     const targetNode =
         document
-            .getElementById("targetNode")
-            ?.value.trim();
+            .getElementById(
+                "targetNode"
+            )
+            ?.value
+            .trim() || "";
+
 
     if (!text) {
 
@@ -774,21 +1159,48 @@ async function runInvestigation() {
         return;
     }
 
-    setInvestigationStatus("ongoing");
+
+    const token =
+        localStorage.getItem(
+            "access_token"
+        );
+
+
+    if (!token) {
+
+        showMessage(
+            "investigationMessage",
+            "Please login before starting an investigation.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    setInvestigationStatus(
+        "ongoing"
+    );
+
 
     const button =
         document.getElementById(
             "runAnalysisButton"
         );
 
+
     if (button) {
-        button.disabled = true;
+
+        button.disabled =
+            true;
     }
+
 
     const buttonText =
         document.getElementById(
             "analysisButtonText"
         );
+
 
     if (buttonText) {
 
@@ -796,25 +1208,15 @@ async function runInvestigation() {
             "Analyzing investigation...";
     }
 
+
     showMessage(
         "investigationMessage",
         "Running NLP, graph search and AI reasoning...",
         "success"
     );
 
+
     try {
-
-        const token =
-            localStorage.getItem(
-                "access_token"
-            );
-
-        if (!token) {
-
-            throw new Error(
-                "Please login before starting an investigation."
-            );
-        }
 
         const response =
             await fetch(
@@ -827,25 +1229,34 @@ async function runInvestigation() {
                         "Content-Type":
                             "application/json",
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
                     },
 
                     body: JSON.stringify({
 
-                        text: text,
+                        text:
+                            text,
+
+                        case_name:
+                            caseName,
 
                         start_node:
-                            startNode || null,
+                            startNode,
 
                         target_node:
-                            targetNode || null
+                            targetNode
+
                     })
                 }
             );
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         if (!response.ok) {
 
@@ -855,27 +1266,42 @@ async function runInvestigation() {
             );
         }
 
+
         lastInvestigation =
             data;
+
+
+        localStorage.setItem(
+            "last_investigation",
+            JSON.stringify(
+                data
+            )
+        );
+
 
         displayInvestigation(
             data
         );
 
+
         setInvestigationStatus(
-            "closed"
+            "ongoing"
         );
+
 
         showMessage(
             "investigationMessage",
-            "Investigation completed successfully.",
+            `Investigation completed successfully. Case ${data.case_id ? "#" + data.case_id : ""} is ONGOING.`,
             "success"
         );
 
-        loadAuditLogs();
+
+        await loadCaseDashboard();
+
+        await loadAuditLogs();
+
 
     }
-
     catch (error) {
 
         console.error(
@@ -883,29 +1309,36 @@ async function runInvestigation() {
             error
         );
 
+
         setInvestigationStatus(
             "closed"
         );
+
 
         showMessage(
             "investigationMessage",
             error.message,
             "error"
         );
-    }
 
+    }
     finally {
 
         if (button) {
-            button.disabled = false;
+            button.disabled =
+                false;
         }
+
 
         if (buttonText) {
 
             buttonText.textContent =
                 "Run AI Investigation";
+
         }
+
     }
+
 }
 
 
@@ -913,144 +1346,155 @@ async function runInvestigation() {
    DISPLAY INVESTIGATION
 ========================================================= */
 
-function displayInvestigation(data) {
+function displayInvestigation(
+    data
+) {
 
     const results =
         document.getElementById(
             "resultsArea"
         );
 
+
     if (results) {
 
         results.classList.remove(
             "hidden"
         );
+
     }
 
+
     const entities =
-        Array.isArray(data.entities)
+        Array.isArray(
+            data.entities
+        )
             ? data.entities
             : [];
 
+
     const relations =
-        Array.isArray(data.relations)
+        Array.isArray(
+            data.relations
+        )
             ? data.relations
             : [];
 
+
     const contradictions =
-        Array.isArray(data.contradictions)
+        Array.isArray(
+            data.contradictions
+        )
             ? data.contradictions
             : [];
 
+
     const confidence =
-        data.bayesian_confidence;
+        data.bayesian_confidence ??
+        data.confidence ??
+        0;
 
 
-    /* =====================================================
-       COUNTERS
-    ===================================================== */
+    /* -----------------------------------------------------
+       Counters
+    ----------------------------------------------------- */
 
     setText(
         "resultEntityCount",
         entities.length
     );
 
+
     setText(
         "resultRelationCount",
         relations.length
     );
 
+
     setText(
         "resultConfidence",
-        formatConfidence(confidence)
+        formatConfidence(
+            confidence
+        )
     );
+
 
     setText(
         "resultContradictions",
         contradictions.length
     );
 
+
     setText(
         "entityCount",
         entities.length
     );
 
-    setText(
-        "confidenceValue",
-        formatConfidence(confidence)
-    );
 
-
-    /* =====================================================
-       DISPLAY DATA
-    ===================================================== */
+    /* -----------------------------------------------------
+       Content
+    ----------------------------------------------------- */
 
     displayEntities(
         entities
     );
 
+
     displayRelations(
         relations
     );
 
+
     displayAlgorithms(
-        data.search_results || {}
+        data.search_results ||
+        {}
     );
+
 
     displayConfidence(
         confidence,
-        data.explanation || []
+        data.explanation ||
+        []
     );
+
 
     displayContradictions(
         contradictions
     );
 
+
     displayExplanation(
-        data.explanation || []
+        data.explanation ||
+        []
     );
 
 
-    /* =====================================================
-       GRAPH
-    ===================================================== */
+    /* -----------------------------------------------------
+       Graph
+    ----------------------------------------------------- */
 
     renderGraph(
+        data.graph_data ||
         data.graph
     );
 
 
-    /* =====================================================
-       DASHBOARD COUNT
-    ===================================================== */
-
-    const caseCountElement =
-        document.getElementById(
-            "caseCount"
-        );
-
-    if (caseCountElement) {
-
-        const caseCount =
-            parseInt(
-                caseCountElement.textContent
-            ) || 0;
-
-        caseCountElement.textContent =
-            caseCount + 1;
-    }
-
+    /* -----------------------------------------------------
+       Dashboard latest result
+    ----------------------------------------------------- */
 
     const dashboardResult =
         document.getElementById(
             "dashboardResult"
         );
 
+
     if (dashboardResult) {
 
         dashboardResult.classList.remove(
             "hidden"
         );
+
     }
 
 
@@ -1058,6 +1502,7 @@ function displayInvestigation(data) {
         document.getElementById(
             "lastSummary"
         );
+
 
     if (lastSummary) {
 
@@ -1076,20 +1521,18 @@ function displayInvestigation(data) {
                     </strong>
 
                     <span>
-                        ${escapeHtml(
-                            String(entities.length)
-                        )}
-                        entities,
 
-                        ${escapeHtml(
-                            String(relations.length)
-                        )}
-                        relationships,
+                        ${entities.length}
+                        entities ·
 
+                        ${relations.length}
+                        relationships ·
+
+                        ${formatConfidence(
+                            confidence
+                        )}
                         confidence
-                        ${escapeHtml(
-                            formatConfidence(confidence)
-                        )}
+
                     </span>
 
                 </div>
@@ -1097,25 +1540,31 @@ function displayInvestigation(data) {
             </div>
         `;
     }
+
 }
 
 
 /* =========================================================
-   ENTITIES
+   DISPLAY ENTITIES
 ========================================================= */
 
-function displayEntities(entities) {
+function displayEntities(
+    entities
+) {
 
     const container =
         document.getElementById(
             "entitiesList"
         );
 
+
     if (!container) {
         return;
     }
 
+
     container.innerHTML = "";
+
 
     if (!entities.length) {
 
@@ -1125,47 +1574,67 @@ function displayEntities(entities) {
         return;
     }
 
-    entities.forEach(entity => {
 
-        const tag =
-            document.createElement(
-                "span"
+    entities.forEach(
+        entity => {
+
+            const tag =
+                document.createElement(
+                    "span"
+                );
+
+
+            const type =
+                String(
+                    entity.type ||
+                    "ENTITY"
+                )
+                    .toLowerCase()
+                    .replace(
+                        /\s+/g,
+                        "-"
+                    );
+
+
+            tag.className =
+                `entity-tag ${type}`;
+
+
+            tag.textContent =
+                `${entity.text || ""} · ${entity.type || "ENTITY"}`;
+
+
+            container.appendChild(
+                tag
             );
 
-        tag.className =
-            "entity-tag " +
-            String(
-                entity.type || ""
-            )
-                .toLowerCase()
-                .replace(/\s+/g, "-");
+        }
+    );
 
-        tag.textContent =
-            `${entity.text || ""} · ${entity.type || ""}`;
-
-        container.appendChild(
-            tag
-        );
-    });
 }
 
 
 /* =========================================================
-   RELATIONS
+   DISPLAY RELATIONS
 ========================================================= */
 
-function displayRelations(relations) {
+function displayRelations(
+    relations
+) {
 
     const container =
         document.getElementById(
             "relationsList"
         );
 
+
     if (!container) {
         return;
     }
 
+
     container.innerHTML = "";
+
 
     if (!relations.length) {
 
@@ -1175,47 +1644,93 @@ function displayRelations(relations) {
         return;
     }
 
-    relations.forEach(relation => {
 
-        const item =
-            document.createElement(
-                "div"
+    relations.forEach(
+        relation => {
+
+            const item =
+                document.createElement(
+                    "div"
+                );
+
+
+            item.className =
+                "relation-item";
+
+
+            const source =
+                relation.source ||
+                "";
+
+
+            const target =
+                relation.target ||
+                "";
+
+
+            const relationName =
+                relation.relation ||
+                "related_to";
+
+
+            const reason =
+                relation.reason ||
+                relation.evidence ||
+                relation.supporting_evidence ||
+                "Relationship detected from case evidence.";
+
+
+            item.innerHTML = `
+
+                <div>
+
+                    <b>
+                        ${escapeHtml(
+                            source
+                        )}
+                    </b>
+
+                    →
+
+                    <span>
+                        ${escapeHtml(
+                            relationName
+                        )}
+                    </span>
+
+                    →
+
+                    <b>
+                        ${escapeHtml(
+                            target
+                        )}
+                    </b>
+
+                </div>
+
+
+                <div class="relationship-reason">
+
+                    <strong>
+                        Relationship Reason
+                    </strong>
+
+                    ${escapeHtml(
+                        reason
+                    )}
+
+                </div>
+
+            `;
+
+
+            container.appendChild(
+                item
             );
 
-        item.className =
-            "relation-item";
+        }
+    );
 
-        item.innerHTML = `
-
-            <b>
-                ${escapeHtml(
-                    relation.source || ""
-                )}
-            </b>
-
-            &nbsp;
-
-            <span>
-                ${escapeHtml(
-                    relation.relation || ""
-                )}
-            </span>
-
-            →
-
-            &nbsp;
-
-            <b>
-                ${escapeHtml(
-                    relation.target || ""
-                )}
-            </b>
-        `;
-
-        container.appendChild(
-            item
-        );
-    });
 }
 
 
@@ -1223,73 +1738,146 @@ function displayRelations(relations) {
    SEARCH ALGORITHMS
 ========================================================= */
 
-function displayAlgorithms(results) {
+function displayAlgorithms(
+    results
+) {
+
+    const legacyStart =
+        document
+            .getElementById(
+                "startNode"
+            )
+            ?.value
+            .trim();
+
+    const legacyTarget =
+        document
+            .getElementById(
+                "targetNode"
+            )
+            ?.value
+            .trim();
+
+    if (
+        !legacyStart &&
+        !legacyTarget
+    ) {
+
+        return;
+    }
 
     const bfs =
-        getSearchPath(results, "BFS");
+        getSearchPath(
+            results,
+            "BFS"
+        );
+
 
     const dfs =
-        getSearchPath(results, "DFS");
+        getSearchPath(
+            results,
+            "DFS"
+        );
+
 
     const astar =
-        getSearchPath(results, "A*");
+        getSearchPath(
+            results,
+            "A*"
+        );
+
 
     setText(
         "bfsResult",
-        formatPath(bfs)
+        formatPath(
+            bfs
+        )
     );
+
 
     setText(
         "dfsResult",
-        formatPath(dfs)
+        formatPath(
+            dfs
+        )
     );
+
 
     setText(
         "astarResult",
-        formatPath(astar)
+        formatPath(
+            astar
+        )
     );
+
 }
 
 
 /* =========================================================
-   GET SEARCH PATH
+   SEARCH PATH NORMALIZER
 ========================================================= */
 
-function getSearchPath(results, algorithm) {
+function getSearchPath(
+    results,
+    algorithm
+) {
 
-    if (!results) {
+    if (
+        !results ||
+        typeof results !==
+            "object"
+    ) {
+
         return [];
     }
 
+
     let result =
         results[algorithm];
+
 
     if (
         result === undefined &&
         algorithm === "A*"
     ) {
+
         result =
-            results["astar"] ||
-            results["Astar"] ||
-            results["A_STAR"];
+            results.astar ||
+            results.Astar ||
+            results.A_STAR ||
+            results.a_star;
+
     }
+
 
     if (!result) {
         return [];
     }
 
-    if (Array.isArray(result)) {
+
+    if (
+        Array.isArray(
+            result
+        )
+    ) {
+
         return result;
     }
 
+
     if (
-        typeof result === "object" &&
-        Array.isArray(result.path)
+        typeof result ===
+            "object" &&
+        Array.isArray(
+            result.path
+        )
     ) {
+
         return result.path;
     }
 
-    return result;
+
+    return [];
 }
 
 
@@ -1297,49 +1885,38 @@ function getSearchPath(results, algorithm) {
    FORMAT PATH
 ========================================================= */
 
-function formatPath(path) {
+function formatPath(
+    path
+) {
 
-    if (!path) {
+    if (
+        !Array.isArray(
+            path
+        ) ||
+        path.length === 0
+    ) {
+
         return "No path found";
     }
 
-    if (Array.isArray(path)) {
 
-        if (!path.length) {
-            return "No path found";
-        }
-
-        return path
-            .map(item => String(item))
-            .join(" → ");
-    }
-
-    if (
-        typeof path === "object" &&
-        Array.isArray(path.path)
-    ) {
-
-        if (!path.path.length) {
-            return "No path found";
-        }
-
-        return path.path
-            .map(item => String(item))
-            .join(" → ");
-    }
-
-    const value =
-        String(path).trim();
-
-    return value || "No path found";
+    return path
+        .map(item =>
+            String(item)
+        )
+        .join(
+            " → "
+        );
 }
 
 
 /* =========================================================
-   RUN SELECTED ALGORITHM
+   MANUAL ALGORITHM RUNNER
 ========================================================= */
 
-function runSelectedAlgorithm(algorithm) {
+function runSelectedAlgorithm(
+    algorithm
+) {
 
     if (!graphInstance) {
 
@@ -1352,15 +1929,24 @@ function runSelectedAlgorithm(algorithm) {
         return;
     }
 
+
     const start =
         document
-            .getElementById("startNode")
-            ?.value.trim();
+            .getElementById(
+                "startNode"
+            )
+            ?.value
+            .trim();
+
 
     const target =
         document
-            .getElementById("targetNode")
-            ?.value.trim();
+            .getElementById(
+                "targetNode"
+            )
+            ?.value
+            .trim();
+
 
     if (!start || !target) {
 
@@ -1373,13 +1959,23 @@ function runSelectedAlgorithm(algorithm) {
         return;
     }
 
+
     const startNode =
-        findGraphNode(start);
+        findGraphNode(
+            start
+        );
+
 
     const targetNode =
-        findGraphNode(target);
+        findGraphNode(
+            target
+        );
 
-    if (!startNode || !targetNode) {
+
+    if (
+        !startNode ||
+        !targetNode
+    ) {
 
         showMessage(
             "investigationMessage",
@@ -1390,106 +1986,369 @@ function runSelectedAlgorithm(algorithm) {
         return;
     }
 
+
     let path = [];
 
-    if (algorithm === "BFS") {
+
+    if (
+        algorithm ===
+        "BFS"
+    ) {
 
         path =
             graphSearchBFS(
                 startNode.id(),
                 targetNode.id()
             );
-    }
 
-    else if (algorithm === "DFS") {
+    }
+    else if (
+        algorithm ===
+        "DFS"
+    ) {
 
         path =
             graphSearchDFS(
                 startNode.id(),
                 targetNode.id()
             );
-    }
 
-    else if (algorithm === "A*") {
+    }
+    else if (
+        algorithm ===
+        "A*"
+    ) {
 
         path =
             graphSearchAStar(
                 startNode.id(),
                 targetNode.id()
             );
+
     }
+
 
     highlightGraphPath(
         path
     );
 
-    const resultElementId =
+
+    const elementId =
         algorithm === "BFS"
             ? "bfsResult"
             : algorithm === "DFS"
                 ? "dfsResult"
                 : "astarResult";
 
+
     setText(
-        resultElementId,
-        formatPath(path)
+        elementId,
+        formatPath(
+            path
+        )
+    );
+
+}
+
+
+/* =========================================================
+   GRAPH PATH RUNNER
+   Runs BFS / DFS / A* on the loaded cytoscape graph.
+   Wired to the "Run Search" button in the Graph Search panel.
+========================================================= */
+
+function runGraphPathSearch() {
+
+    const sourceSelect =
+        document.getElementById(
+            "searchStartNode"
+        );
+
+    const targetSelect =
+        document.getElementById(
+            "searchTargetNode"
+        );
+
+    const algorithmSelect =
+        document.getElementById(
+            "searchAlgorithm"
+        );
+
+    const sourceId =
+        sourceSelect
+            ? sourceSelect.value
+            : "";
+
+    const targetId =
+        targetSelect
+            ? targetSelect.value
+            : "";
+
+    const algorithm =
+        algorithmSelect
+            ? algorithmSelect.value
+            : "BFS";
+
+    const sourceValue =
+        sourceSelect
+            ? sourceSelect
+                .options[sourceSelect.selectedIndex]
+                .textContent
+                .trim()
+            : "";
+
+    const targetValue =
+        targetSelect
+            ? targetSelect
+                .options[targetSelect.selectedIndex]
+                .textContent
+                .trim()
+            : "";
+
+    console.log(
+        "SEARCH SOURCE",
+        sourceValue
+    );
+
+    console.log(
+        "SEARCH DESTINATION",
+        targetValue
+    );
+
+    console.log(
+        "SEARCH ALGORITHM",
+        algorithm
+    );
+
+    console.log(
+        "SEARCH GRAPH",
+        graphInstance
+    );
+
+    if (!graphInstance) {
+
+        setText(
+            "searchResultDetails",
+            "No graph loaded. Run an investigation first."
+        );
+
+        return;
+    }
+
+    if (!sourceId || !targetId) {
+
+        setText(
+            "searchResultDetails",
+            "Please select both a source and a destination node."
+        );
+
+        return;
+    }
+
+    const sourceNode =
+        findGraphNode(
+            sourceValue
+        );
+
+    const targetNode =
+        findGraphNode(
+            targetValue
+        );
+
+    if (
+        !sourceNode ||
+        !targetNode
+    ) {
+
+        setText(
+            "searchResultDetails",
+            "Source or destination node not found on the current graph."
+        );
+
+        return;
+    }
+
+    const bfsPath =
+        graphSearchBFS(
+            sourceId,
+            targetId
+        );
+
+    const dfsPath =
+        graphSearchDFS(
+            sourceId,
+            targetId
+        );
+
+    const astarPath =
+        graphSearchAStar(
+            sourceId,
+            targetId
+        );
+
+    setText(
+        "bfsResult",
+        formatPath(
+            bfsPath
+        )
+    );
+
+    setText(
+        "dfsResult",
+        formatPath(
+            dfsPath
+        )
+    );
+
+    setText(
+        "astarResult",
+        formatPath(
+            astarPath
+        )
+    );
+
+    switch (
+        algorithm
+    ) {
+
+        case "DFS":
+            highlightGraphPath(
+                dfsPath
+            );
+
+            break;
+
+        case "A*":
+            highlightGraphPath(
+                astarPath
+            );
+
+            break;
+
+        case "BFS":
+        default:
+            highlightGraphPath(
+                bfsPath
+            );
+
+            break;
+
+    }
+
+    const selectedPath =
+        algorithm === "DFS"
+            ? dfsPath
+            : algorithm === "A*"
+                ? astarPath
+                : bfsPath;
+
+    setText(
+        "searchResultDetails",
+        selectedPath.length === 0
+            ? "Path not found between the selected nodes for " +
+                algorithm +
+                "."
+            : "Path found with " +
+                algorithm +
+                ": " +
+                formatPath(
+                    selectedPath
+                )
     );
 }
 
 
 /* =========================================================
-   FIND GRAPH NODE
+   GRAPH SEARCH
 ========================================================= */
 
-function findGraphNode(value) {
+function findGraphNode(
+    value
+) {
 
-    if (!graphInstance || !value) {
+    if (
+        !graphInstance ||
+        !value
+    ) {
+
         return null;
     }
 
+
     const normalized =
-        normalizeText(value);
+        normalizeText(
+            value
+        );
 
-    let node =
-        graphInstance.nodes().filter(
-            element => {
 
-                return (
-                    normalizeText(
-                        element.id()
-                    ) === normalized
-                );
-            }
-        )[0];
+    const exact =
+        graphInstance
+            .nodes()
+            .filter(
+                node => {
 
-    if (node) {
-        return node;
+                    return (
+                        normalizeText(
+                            node.id()
+                        ) ===
+                        normalized
+                    );
+
+                }
+            );
+
+
+    if (
+        exact.length
+    ) {
+
+        return exact[0];
     }
 
-    node =
-        graphInstance.nodes().filter(
-            element => {
 
-                const id =
-                    normalizeText(
-                        element.id()
+    const partial =
+        graphInstance
+            .nodes()
+            .filter(
+                node => {
+
+                    const id =
+                        normalizeText(
+                            node.id()
+                        );
+
+
+                    const label =
+                        normalizeText(
+                            node.data(
+                                "label"
+                            ) ||
+                            ""
+                        );
+
+
+                    return (
+                        id.includes(
+                            normalized
+                        ) ||
+                        normalized.includes(
+                            id
+                        ) ||
+                        label.includes(
+                            normalized
+                        ) ||
+                        normalized.includes(
+                            label
+                        )
                     );
 
-                const label =
-                    normalizeText(
-                        element.data("label") || ""
-                    );
+                }
+            );
 
-                return (
-                    id.includes(normalized) ||
-                    normalized.includes(id) ||
-                    label.includes(normalized) ||
-                    normalized.includes(label)
-                );
-            }
-        )[0];
 
-    return node || null;
+    return partial.length
+        ? partial[0]
+        : null;
 }
 
 
@@ -1497,12 +2356,20 @@ function findGraphNode(value) {
    NORMALIZE TEXT
 ========================================================= */
 
-function normalizeText(value) {
+function normalizeText(
+    value
+) {
 
-    return String(value || "")
+    return String(
+        value ||
+        ""
+    )
         .trim()
         .toLowerCase()
-        .replace(/\s+/g, " ");
+        .replace(
+            /\s+/g,
+            " "
+        );
 }
 
 
@@ -1510,55 +2377,88 @@ function normalizeText(value) {
    GRAPH NEIGHBORS
 ========================================================= */
 
-function getGraphNeighbors(nodeId) {
+function getGraphNeighbors(
+    nodeId
+) {
 
     if (!graphInstance) {
         return [];
     }
+
 
     const node =
         graphInstance.getElementById(
             nodeId
         );
 
-    if (!node || node.empty()) {
+
+    if (
+        !node ||
+        node.empty()
+    ) {
+
         return [];
     }
 
+
     const neighbors = [];
 
-    node.connectedEdges().forEach(edge => {
 
-        const source =
-            edge.source().id();
+    node
+        .connectedEdges()
+        .forEach(
+            edge => {
 
-        const target =
-            edge.target().id();
+                const source =
+                    edge.source()
+                        .id();
 
-        /*
-         * This is intentionally treated as an
-         * undirected traversal so investigation
-         * searches can discover connected evidence
-         * even when the displayed relationship is
-         * directional.
-         */
 
-        if (source === nodeId) {
+                const target =
+                    edge.target()
+                        .id();
 
-            neighbors.push(target);
 
-        } else if (target === nodeId) {
+                /*
+                 * Treat relationships as connected
+                 * for investigation traversal.
+                 */
 
-            neighbors.push(source);
-        }
-    });
+                if (
+                    source ===
+                    nodeId
+                ) {
 
-    return [...new Set(neighbors)];
+                    neighbors.push(
+                        target
+                    );
+
+                }
+                else if (
+                    target ===
+                    nodeId
+                ) {
+
+                    neighbors.push(
+                        source
+                    );
+
+                }
+
+            }
+        );
+
+
+    return [
+        ...new Set(
+            neighbors
+        )
+    ];
 }
 
 
 /* =========================================================
-   GRAPH BFS
+   BFS
 ========================================================= */
 
 function graphSearchBFS(
@@ -1566,27 +2466,43 @@ function graphSearchBFS(
     targetId
 ) {
 
-    if (startId === targetId) {
-        return [startId];
+    if (
+        startId ===
+        targetId
+    ) {
+
+        return [
+            startId
+        ];
     }
+
 
     const queue = [
         startId
     ];
+
 
     const visited =
         new Set([
             startId
         ]);
 
+
     const parent = {};
 
-    while (queue.length) {
+
+    while (
+        queue.length
+    ) {
 
         const current =
             queue.shift();
 
-        if (current === targetId) {
+
+        if (
+            current ===
+            targetId
+        ) {
 
             return reconstructPath(
                 parent,
@@ -1595,29 +2511,50 @@ function graphSearchBFS(
             );
         }
 
+
         const neighbors =
-            getGraphNeighbors(current);
+            getGraphNeighbors(
+                current
+            );
 
-        neighbors.forEach(next => {
 
-            if (!visited.has(next)) {
+        neighbors.forEach(
+            next => {
 
-                visited.add(next);
+                if (
+                    visited.has(
+                        next
+                    )
+                ) {
+
+                    return;
+                }
+
+
+                visited.add(
+                    next
+                );
+
 
                 parent[next] =
                     current;
 
-                queue.push(next);
+
+                queue.push(
+                    next
+                );
+
             }
-        });
+        );
     }
+
 
     return [];
 }
 
 
 /* =========================================================
-   GRAPH DFS
+   DFS
 ========================================================= */
 
 function graphSearchDFS(
@@ -1625,31 +2562,56 @@ function graphSearchDFS(
     targetId
 ) {
 
-    if (startId === targetId) {
-        return [startId];
+    if (
+        startId ===
+        targetId
+    ) {
+
+        return [
+            startId
+        ];
     }
+
 
     const stack = [
         startId
     ];
 
+
     const visited =
         new Set();
 
+
     const parent = {};
 
-    while (stack.length) {
+
+    while (
+        stack.length
+    ) {
 
         const current =
             stack.pop();
 
-        if (visited.has(current)) {
+
+        if (
+            visited.has(
+                current
+            )
+        ) {
+
             continue;
         }
 
-        visited.add(current);
 
-        if (current === targetId) {
+        visited.add(
+            current
+        );
+
+
+        if (
+            current ===
+            targetId
+        ) {
 
             return reconstructPath(
                 parent,
@@ -1658,38 +2620,51 @@ function graphSearchDFS(
             );
         }
 
-        const neighbors =
-            getGraphNeighbors(current);
 
-        /*
-         * Reverse so traversal is deterministic
-         * and similar to BFS ordering.
-         */
+        const neighbors =
+            getGraphNeighbors(
+                current
+            );
+
 
         neighbors
             .slice()
             .reverse()
-            .forEach(next => {
+            .forEach(
+                next => {
 
-                if (!visited.has(next)) {
+                    if (
+                        !visited.has(
+                            next
+                        )
+                    ) {
 
-                    if (!(next in parent)) {
+                        if (
+                            !(next in parent)
+                        ) {
 
-                        parent[next] =
-                            current;
+                            parent[next] =
+                                current;
+                        }
+
+
+                        stack.push(
+                            next
+                        );
+
                     }
 
-                    stack.push(next);
                 }
-            });
+            );
     }
+
 
     return [];
 }
 
 
 /* =========================================================
-   GRAPH A*
+   A*
 ========================================================= */
 
 function graphSearchAStar(
@@ -1697,62 +2672,91 @@ function graphSearchAStar(
     targetId
 ) {
 
-    if (startId === targetId) {
-        return [startId];
+    if (
+        startId ===
+        targetId
+    ) {
+
+        return [
+            startId
+        ];
     }
+
 
     if (!graphInstance) {
         return [];
     }
 
+
     const openSet = [
         startId
     ];
 
+
     const cameFrom = {};
 
+
     const gScore = {};
+
+
     const fScore = {};
 
-    graphInstance.nodes().forEach(node => {
 
-        gScore[node.id()] =
-            Infinity;
+    graphInstance
+        .nodes()
+        .forEach(
+            node => {
 
-        fScore[node.id()] =
-            Infinity;
-    });
+                gScore[
+                    node.id()
+                ] = Infinity;
 
-    gScore[startId] = 0;
 
-    fScore[startId] =
+                fScore[
+                    node.id()
+                ] = Infinity;
+
+            }
+        );
+
+
+    gScore[
+        startId
+    ] = 0;
+
+
+    fScore[
+        startId
+    ] =
         heuristicDistance(
             startId,
             targetId
         );
 
+
     const closedSet =
         new Set();
 
-    while (openSet.length) {
+
+    while (
+        openSet.length
+    ) {
 
         openSet.sort(
-            (a, b) => {
-
-                if (fScore[a] !== fScore[b]) {
-                    return fScore[a] - fScore[b];
-                }
-
-                return String(a).localeCompare(
-                    String(b)
-                );
-            }
+            (a, b) =>
+                fScore[a] -
+                fScore[b]
         );
+
 
         const current =
             openSet.shift();
 
-        if (current === targetId) {
+
+        if (
+            current ===
+            targetId
+        ) {
 
             return reconstructPath(
                 cameFrom,
@@ -1761,58 +2765,88 @@ function graphSearchAStar(
             );
         }
 
-        closedSet.add(current);
+
+        closedSet.add(
+            current
+        );
+
 
         const neighbors =
-            getGraphNeighbors(current);
+            getGraphNeighbors(
+                current
+            );
 
-        neighbors.forEach(neighbor => {
 
-            if (closedSet.has(neighbor)) {
-                return;
-            }
-
-            const tentativeScore =
-                gScore[current] + 1;
-
-            if (
-                tentativeScore <
-                gScore[neighbor]
-            ) {
-
-                cameFrom[neighbor] =
-                    current;
-
-                gScore[neighbor] =
-                    tentativeScore;
-
-                fScore[neighbor] =
-                    tentativeScore +
-                    heuristicDistance(
-                        neighbor,
-                        targetId
-                    );
+        neighbors.forEach(
+            neighbor => {
 
                 if (
-                    !openSet.includes(
+                    closedSet.has(
                         neighbor
                     )
                 ) {
 
-                    openSet.push(
-                        neighbor
-                    );
+                    return;
                 }
+
+
+                const tentative =
+                    gScore[current] +
+                    1;
+
+
+                if (
+                    tentative <
+                    gScore[neighbor]
+                ) {
+
+                    cameFrom[
+                        neighbor
+                    ] =
+                        current;
+
+
+                    gScore[
+                        neighbor
+                    ] =
+                        tentative;
+
+
+                    fScore[
+                        neighbor
+                    ] =
+                        tentative +
+                        heuristicDistance(
+                            neighbor,
+                            targetId
+                        );
+
+
+                    if (
+                        !openSet.includes(
+                            neighbor
+                        )
+                    ) {
+
+                        openSet.push(
+                            neighbor
+                        );
+
+                    }
+
+                }
+
             }
-        });
+        );
     }
+
 
     return [];
 }
 
 
 /* =========================================================
-   HEURISTIC
+   A* HEURISTIC
 ========================================================= */
 
 function heuristicDistance(
@@ -1824,48 +2858,50 @@ function heuristicDistance(
         return 0;
     }
 
-    const a =
+
+    const first =
         graphInstance.getElementById(
             nodeA
         );
 
-    const b =
+
+    const second =
         graphInstance.getElementById(
             nodeB
         );
 
+
     if (
-        !a ||
-        !b ||
-        a.empty() ||
-        b.empty()
+        first.empty() ||
+        second.empty()
     ) {
+
         return 0;
     }
 
-    const positionA =
-        a.position();
 
-    const positionB =
-        b.position();
+    const a =
+        first.position();
 
-    /*
-     * Cytoscape coordinates are used only as a
-     * heuristic. Every graph edge has cost 1.
-     */
+
+    const b =
+        second.position();
+
 
     return Math.sqrt(
+
         Math.pow(
-            positionA.x -
-            positionB.x,
+            a.x - b.x,
             2
         ) +
+
         Math.pow(
-            positionA.y -
-            positionB.y,
+            a.y - b.y,
             2
         )
+
     );
+
 }
 
 
@@ -1881,57 +2917,75 @@ function reconstructPath(
 
     const path = [];
 
+
     let current =
         targetId;
 
-    const safetyLimit =
+
+    const limit =
         graphInstance
-            ? graphInstance.nodes().length + 5
+            ? graphInstance
+                .nodes()
+                .length + 5
             : 1000;
 
-    let safetyCounter = 0;
+
+    let counter = 0;
+
 
     while (
         current !== undefined &&
         current !== null &&
-        safetyCounter < safetyLimit
+        counter < limit
     ) {
 
         path.unshift(
             current
         );
 
-        if (current === startId) {
+
+        if (
+            current ===
+            startId
+        ) {
+
             break;
         }
+
 
         current =
             parent[current];
 
-        safetyCounter++;
+
+        counter++;
     }
 
+
     if (
-        path.length === 0 ||
+        !path.length ||
         path[0] !== startId
     ) {
 
         return [];
     }
 
+
     return path;
 }
 
 
 /* =========================================================
-   HIGHLIGHT GRAPH PATH
+   HIGHLIGHT PATH
 ========================================================= */
 
-function highlightGraphPath(path) {
+function highlightGraphPath(
+    path
+) {
 
     if (!graphInstance) {
         return;
     }
+
 
     graphInstance
         .elements()
@@ -1939,168 +2993,146 @@ function highlightGraphPath(path) {
             "path-node path-edge"
         );
 
+
     if (
         !path ||
         path.length === 0
     ) {
 
-        showMessage(
-            "investigationMessage",
-            "No path found between the selected entities.",
-            "error"
-        );
-
         return;
     }
 
 
-    /* =====================================================
-       HIGHLIGHT NODES
-    ===================================================== */
+    path.forEach(
+        nodeId => {
 
-    path.forEach(nodeId => {
+            const node =
+                graphInstance.getElementById(
+                    nodeId
+                );
 
-        const node =
-            graphInstance.getElementById(
-                nodeId
-            );
 
-        if (
-            node &&
-            !node.empty()
-        ) {
+            if (
+                node &&
+                !node.empty()
+            ) {
 
-            node.addClass(
-                "path-node"
-            );
+                node.addClass(
+                    "path-node"
+                );
+            }
+
         }
-    });
+    );
 
-
-    /* =====================================================
-       HIGHLIGHT EDGES
-    ===================================================== */
 
     for (
-        let i = 0;
-        i < path.length - 1;
-        i++
+        let index = 0;
+        index <
+        path.length - 1;
+        index++
     ) {
 
         const source =
             graphInstance.getElementById(
-                path[i]
+                path[index]
             );
+
 
         const target =
             graphInstance.getElementById(
-                path[i + 1]
+                path[index + 1]
             );
 
+
         if (
-            !source ||
-            !target ||
             source.empty() ||
             target.empty()
         ) {
+
             continue;
         }
 
+
         const edge =
-            source.edgesTo(target)
+            source
+                .edgesTo(target)
                 .union(
                     target.edgesTo(source)
                 );
 
+
         edge.addClass(
             "path-edge"
         );
+
     }
 
 
-    /* =====================================================
-       CENTER PATH
-    ===================================================== */
-
-    const pathNodes =
+    const nodes =
         path
-            .map(nodeId =>
-                graphInstance.getElementById(
-                    nodeId
-                )
+            .map(
+                nodeId =>
+                    graphInstance.getElementById(
+                        nodeId
+                    )
             )
-            .filter(node =>
-                node &&
-                !node.empty()
+            .filter(
+                node =>
+                    node &&
+                    !node.empty()
             );
 
-    if (pathNodes.length) {
+
+    if (nodes.length) {
 
         graphInstance.fit(
-            pathNodes,
+            nodes,
             70
         );
+
     }
 
-
-    showMessage(
-        "investigationMessage",
-        `Path found: ${path.join(" → ")}`,
-        "success"
-    );
 }
 
 
 /* =========================================================
-   GRAPH
+   THE ONLY GRAPH RENDERER
 ========================================================= */
 
-function renderGraph(graphData) {
+function renderGraph(
+    graphData
+) {
 
     const container =
         document.getElementById(
             "cy"
         );
 
+
     if (!container) {
         return;
     }
 
-    if (!graphData) {
 
-        container.innerHTML =
-            "<p style='padding:20px'>No graph data available.</p>";
-
-        return;
-    }
-
-    if (
-        typeof cytoscape ===
-        "undefined"
-    ) {
-
-        container.innerHTML =
-            "<p style='padding:20px'>Cytoscape failed to load.</p>";
-
-        return;
-    }
-
-
-    /* =====================================================
-       DESTROY PREVIOUS GRAPH
-    ===================================================== */
+    /* -----------------------------------------------------
+       Destroy previous graph
+    ----------------------------------------------------- */
 
     if (graphInstance) {
 
         try {
-            graphInstance.destroy();
-        }
 
+            graphInstance.destroy();
+
+        }
         catch (error) {
+
             console.warn(
                 "Graph destroy warning:",
                 error
             );
+
         }
 
         graphInstance =
@@ -2111,9 +3143,85 @@ function renderGraph(graphData) {
     container.innerHTML = "";
 
 
-    /* =====================================================
-       BUILD ELEMENTS
-    ===================================================== */
+    /* -----------------------------------------------------
+       Library check
+    ----------------------------------------------------- */
+
+    if (
+        typeof cytoscape ===
+        "undefined"
+    ) {
+
+        container.innerHTML = `
+            <div style="
+                height:100%;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:#ef4444;
+                font-size:13px;
+            ">
+                Cytoscape library failed to load.
+            </div>
+        `;
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       Data validation
+    ----------------------------------------------------- */
+
+    if (
+        !graphData ||
+        !Array.isArray(
+            graphData.nodes
+        )
+    ) {
+
+        container.innerHTML = `
+            <div style="
+                height:100%;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:#64748b;
+                font-size:13px;
+            ">
+                No graph data available.
+            </div>
+        `;
+
+        return;
+    }
+
+
+    const startValue =
+        document
+            .getElementById(
+                "startNode"
+            )
+            ?.value
+            .trim() || "";
+
+
+    const targetValue =
+        document
+            .getElementById(
+                "targetNode"
+            )
+            ?.value
+            .trim() || "";
+
+
+    const startLower =
+        startValue.toLowerCase();
+
+
+    const targetLower =
+        targetValue.toLowerCase();
+
 
     const elements = [];
 
@@ -2121,23 +3229,125 @@ function renderGraph(graphData) {
         new Set();
 
 
-    /* =====================================================
-       NODES
-    ===================================================== */
+    /* -----------------------------------------------------
+       NORMALIZE NODES
+    ----------------------------------------------------- */
 
-    (graphData.nodes || [])
-        .forEach(node => {
+    graphData.nodes.forEach(
+        rawNode => {
 
-            const nodeId =
-                String(
-                    node.id
-                );
+            /*
+             * Supports BOTH:
+             *
+             * { id, label, type }
+             *
+             * and:
+             *
+             * { data: { id, label, type } }
+             */
 
-            if (nodeIds.has(nodeId)) {
+            const node =
+                rawNode &&
+                rawNode.data
+                    ? rawNode.data
+                    : rawNode;
+
+
+            if (!node) {
                 return;
             }
 
-            nodeIds.add(nodeId);
+
+            const rawId =
+                node.id ??
+                node.name ??
+                "";
+
+
+            const nodeId =
+                String(
+                    rawId
+                ).trim();
+
+
+            /*
+             * THIS prevents the "undefined" node.
+             */
+
+            if (!nodeId) {
+                return;
+            }
+
+
+            if (
+                nodeId.toLowerCase() ===
+                "undefined"
+            ) {
+
+                return;
+            }
+
+
+            if (
+                nodeId.toLowerCase() ===
+                "null"
+            ) {
+
+                return;
+            }
+
+
+            if (
+                nodeIds.has(
+                    nodeId
+                )
+            ) {
+
+                return;
+            }
+
+
+            nodeIds.add(
+                nodeId
+            );
+
+
+            const label =
+                String(
+                    node.label ??
+                    nodeId
+                );
+
+
+            const type =
+                String(
+                    node.type ??
+                    "PERSON"
+                ).toUpperCase();
+
+
+            let role =
+                "normal";
+
+
+            if (
+                nodeId.toLowerCase() ===
+                startLower
+            ) {
+
+                role =
+                    "start";
+
+            }
+            else if (
+                nodeId.toLowerCase() ===
+                targetLower
+            ) {
+
+                role =
+                    "target";
+            }
+
 
             elements.push({
 
@@ -2147,46 +3357,177 @@ function renderGraph(graphData) {
                         nodeId,
 
                     label:
-                        node.label ||
-                        nodeId,
+                        label,
 
-                    type:
-                        node.type ||
-                        "ENTITY"
+                    fullLabel:
+                        label,
+
+                    nodeType:
+                        type,
+
+                    role:
+                        role
+
                 }
+
             });
-        });
+
+        }
+    );
 
 
-    /* =====================================================
-       EDGES
-    ===================================================== */
+    /* -----------------------------------------------------
+       NORMALIZE EDGES
+    ----------------------------------------------------- */
 
-    (graphData.edges || [])
-        .forEach(
-            (edge, index) => {
+    if (
+        Array.isArray(
+            graphData.edges
+        )
+    ) {
+
+        graphData.edges.forEach(
+            (rawEdge, index) => {
+
+                const edge =
+                    rawEdge &&
+                    rawEdge.data
+                        ? rawEdge.data
+                        : rawEdge;
+
+
+                if (!edge) {
+                    return;
+                }
+
 
                 const source =
                     String(
-                        edge.source
-                    );
+                        edge.source ??
+                        ""
+                    ).trim();
+
 
                 const target =
                     String(
-                        edge.target
-                    );
+                        edge.target ??
+                        ""
+                    ).trim();
+
 
                 /*
-                 * Skip invalid edges.
+                 * Invalid edge = skip
                  */
 
                 if (
-                    !nodeIds.has(source) ||
-                    !nodeIds.has(target) ||
-                    source === target
+                    !source ||
+                    !target
                 ) {
+
                     return;
                 }
+
+
+                /*
+                 * Ensure endpoints exist.
+                 */
+
+                if (
+                    !nodeIds.has(
+                        source
+                    )
+                ) {
+
+                    nodeIds.add(
+                        source
+                    );
+
+
+                    elements.push({
+
+                        data: {
+
+                            id:
+                                source,
+
+                            label:
+                                source,
+
+                            fullLabel:
+                                source,
+
+                            nodeType:
+                                "PERSON",
+
+                            role:
+                                source.toLowerCase() ===
+                                startLower
+                                    ? "start"
+                                    : "normal"
+
+                        }
+
+                    });
+
+                }
+
+
+                if (
+                    !nodeIds.has(
+                        target
+                    )
+                ) {
+
+                    nodeIds.add(
+                        target
+                    );
+
+
+                    elements.push({
+
+                        data: {
+
+                            id:
+                                target,
+
+                            label:
+                                target,
+
+                            fullLabel:
+                                target,
+
+                            nodeType:
+                                "PERSON",
+
+                            role:
+                                target.toLowerCase() ===
+                                targetLower
+                                    ? "target"
+                                    : "normal"
+
+                        }
+
+                    });
+
+                }
+
+
+                const relation =
+                    String(
+                        edge.relation ??
+                        edge.label ??
+                        "related"
+                    );
+
+
+                const reason =
+                    String(
+                        edge.reason ??
+                        edge.evidence ??
+                        edge.supporting_evidence ??
+                        "Relationship detected from case evidence."
+                    );
+
 
                 elements.push({
 
@@ -2202,19 +3543,50 @@ function renderGraph(graphData) {
                             target,
 
                         label:
-                            String(
-                                edge.relation ||
-                                ""
-                            )
+                            relation,
+
+                        relation:
+                            relation,
+
+                        reason:
+                            reason
+
                     }
+
                 });
+
             }
         );
 
+    }
 
-    /* =====================================================
-       CREATE CYTOSCAPE GRAPH
-    ===================================================== */
+
+    /* -----------------------------------------------------
+       If no elements
+    ----------------------------------------------------- */
+
+    if (!elements.length) {
+
+        container.innerHTML = `
+            <div style="
+                height:100%;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:#64748b;
+                font-size:13px;
+            ">
+                No valid entities were returned by the backend.
+            </div>
+        `;
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       CREATE GRAPH
+    ----------------------------------------------------- */
 
     graphInstance =
         cytoscape({
@@ -2229,10 +3601,11 @@ function renderGraph(graphData) {
                 0.2,
 
             maxZoom:
-                3,
+                3.5,
 
             wheelSensitivity:
                 0.15,
+
 
             layout: {
 
@@ -2246,7 +3619,7 @@ function renderGraph(graphData) {
                     500,
 
                 padding:
-                    60,
+                    70,
 
                 nodeRepulsion:
                     9000,
@@ -2257,28 +3630,26 @@ function renderGraph(graphData) {
                 edgeElasticity:
                     0.25,
 
-                nestingFactor:
-                    1.2,
-
                 gravity:
                     0.15
             },
 
 
-            /* =================================================
-               GRAPH STYLE
-            ================================================= */
-
             style: [
 
+                /* -----------------------------------------
+                   BASE NODE
+                ----------------------------------------- */
+
                 {
+
                     selector:
                         "node",
 
                     style: {
 
                         "background-color":
-                            "#2563eb",
+                            "#64748b",
 
                         "label":
                             "data(label)",
@@ -2302,10 +3673,10 @@ function renderGraph(graphData) {
                             "bold",
 
                         "width":
-                            42,
+                            45,
 
                         "height":
-                            42,
+                            45,
 
                         "border-width":
                             3,
@@ -2317,12 +3688,186 @@ function renderGraph(graphData) {
                             "wrap",
 
                         "text-max-width":
-                            110
+                            115
                     }
+
                 },
 
 
+                /* -----------------------------------------
+                   PERSON
+                ----------------------------------------- */
+
                 {
+
+                    selector:
+                        'node[nodeType="PERSON"]',
+
+                    style: {
+
+                        "shape":
+                            "ellipse",
+
+                        "background-color":
+                            "#2563eb",
+
+                        "border-color":
+                            "#bfdbfe"
+
+                    }
+
+                },
+
+
+                /* -----------------------------------------
+                   EVIDENCE
+                ----------------------------------------- */
+
+                {
+
+                    selector:
+                        'node[nodeType="EVIDENCE"]',
+
+                    style: {
+
+                        "shape":
+                            "roundrectangle",
+
+                        "background-color":
+                            "#f59e0b",
+
+                        "border-color":
+                            "#fde68a",
+
+                        "width":
+                            95,
+
+                        "height":
+                            58
+
+                    }
+
+                },
+
+
+                /* -----------------------------------------
+                   LOCATION
+                ----------------------------------------- */
+
+                {
+
+                    selector:
+                        'node[nodeType="LOCATION"]',
+
+                    style: {
+
+                        "shape":
+                            "diamond",
+
+                        "background-color":
+                            "#7c3aed",
+
+                        "border-color":
+                            "#ddd6fe"
+
+                    }
+
+                },
+
+
+                /* -----------------------------------------
+                   DATE
+                ----------------------------------------- */
+
+                {
+
+                    selector:
+                        'node[nodeType="DATE"]',
+
+                    style: {
+
+                        "shape":
+                            "hexagon",
+
+                        "background-color":
+                            "#0891b2",
+
+                        "border-color":
+                            "#bae6fd"
+
+                    }
+
+                },
+
+
+                /* -----------------------------------------
+                   START
+                ----------------------------------------- */
+
+                {
+
+                    selector:
+                        'node[role="start"]',
+
+                    style: {
+
+                        "background-color":
+                            "#16a34a",
+
+                        "border-color":
+                            "#166534",
+
+                        "border-width":
+                            5,
+
+                        "width":
+                            60,
+
+                        "height":
+                            60
+
+                    }
+
+                },
+
+
+                /* -----------------------------------------
+                   TARGET
+                ----------------------------------------- */
+
+                {
+
+                    selector:
+                        'node[role="target"]',
+
+                    style: {
+
+                        "background-color":
+                            "#dc2626",
+
+                        "border-color":
+                            "#991b1b",
+
+                        "border-width":
+                            5,
+
+                        "width":
+                            60,
+
+                        "height":
+                            60
+
+                    }
+
+                },
+
+
+                /* -----------------------------------------
+                   EDGE
+                ----------------------------------------- */
+
+                {
+
                     selector:
                         "edge",
 
@@ -2347,7 +3892,10 @@ function renderGraph(graphData) {
                             "data(label)",
 
                         "font-size":
-                            8,
+                            9,
+
+                        "font-weight":
+                            "bold",
 
                         "color":
                             "#475569",
@@ -2364,34 +3912,38 @@ function renderGraph(graphData) {
                         "text-rotation":
                             "autorotate"
                     }
+
                 },
 
 
+                /* -----------------------------------------
+                   PATH NODE
+                ----------------------------------------- */
+
                 {
+
                     selector:
                         "node.path-node",
 
                     style: {
 
-                        "background-color":
-                            "#16a34a",
-
                         "border-color":
-                            "#166534",
+                            "#111827",
 
                         "border-width":
-                            5,
+                            5
 
-                        "width":
-                            48,
-
-                        "height":
-                            48
                     }
+
                 },
 
 
+                /* -----------------------------------------
+                   PATH EDGE
+                ----------------------------------------- */
+
                 {
+
                     selector:
                         "edge.path-edge",
 
@@ -2404,20 +3956,44 @@ function renderGraph(graphData) {
                             "#16a34a",
 
                         "width":
-                            5,
+                            5
 
-                        "z-index":
-                            999
                     }
+
                 }
 
             ]
+
         });
 
 
-    /* =====================================================
-       GRAPH EVENTS
-    ===================================================== */
+    /* -----------------------------------------------------
+       Automatic BFS highlighting from backend
+    ----------------------------------------------------- */
+
+    const backendBfs =
+        lastInvestigation
+            ?.search_results
+            ?.BFS;
+
+
+    if (
+        Array.isArray(
+            backendBfs
+        ) &&
+        backendBfs.length > 1
+    ) {
+
+        highlightGraphPath(
+            backendBfs
+        );
+
+    }
+
+
+    /* -----------------------------------------------------
+       NODE CLICK
+    ----------------------------------------------------- */
 
     graphInstance.on(
         "tap",
@@ -2427,54 +4003,314 @@ function renderGraph(graphData) {
             const node =
                 event.target;
 
+
             const nodeId =
-                node.id();
-
-            const startInput =
-                document.getElementById(
-                    "startNode"
+                node.data(
+                    "fullLabel"
                 );
 
-            const targetInput =
-                document.getElementById(
-                    "targetNode"
+
+            const nodeType =
+                node.data(
+                    "nodeType"
                 );
+
+
+            const role =
+                node.data(
+                    "role"
+                );
+
+
+            let message =
+                `${node.degree()} relationship connection(s) in the graph.`;
+
 
             if (
-                startInput &&
-                !startInput.value
+                role ===
+                "start"
             ) {
 
-                startInput.value =
-                    nodeId;
+                message =
+                    "Selected START entity.";
 
             }
-
             else if (
-                targetInput &&
-                !targetInput.value
+                role ===
+                "target"
             ) {
 
-                targetInput.value =
-                    nodeId;
+                message =
+                    "Selected TARGET entity.";
 
             }
 
-            else if (
-                startInput &&
-                targetInput
-            ) {
 
-                /*
-                 * If both fields already contain values,
-                 * clicking a node replaces the target.
-                 */
+            showGraphInsight({
 
-                targetInput.value =
-                    nodeId;
-            }
+                title:
+                    nodeId,
+
+                type:
+                    nodeType,
+
+                message:
+                    message
+
+            });
+
         }
     );
+
+
+    /* -----------------------------------------------------
+       EDGE CLICK
+    ----------------------------------------------------- */
+
+    graphInstance.on(
+        "tap",
+        "edge",
+        event => {
+
+            const edge =
+                event.target;
+
+
+            const source =
+                edge
+                    .source()
+                    .data(
+                        "fullLabel"
+                    );
+
+
+            const target =
+                edge
+                    .target()
+                    .data(
+                        "fullLabel"
+                    );
+
+
+            const relation =
+                edge.data(
+                    "relation"
+                );
+
+
+            const reason =
+                edge.data(
+                    "reason"
+                );
+
+
+            showGraphInsight({
+
+                title:
+                    `${source} → ${target}`,
+
+                type:
+                    "RELATIONSHIP",
+
+                message:
+                    `${relation}. ${reason}`
+
+            });
+
+        }
+    );
+
+
+    /* -----------------------------------------------------
+       Fit graph
+    ----------------------------------------------------- */
+
+    setTimeout(
+        () => {
+
+            if (graphInstance) {
+
+                graphInstance.fit(
+                    graphInstance.elements(),
+                    60
+                );
+
+            }
+
+        },
+        200
+    );
+
+
+    /* -----------------------------------------------------
+       Search dropdowns
+    ----------------------------------------------------- */
+
+    populateSearchSelects();
+
+}
+
+
+/* =========================================================
+   GRAPH INSIGHT
+========================================================= */
+
+function showGraphInsight(
+    information
+) {
+
+    const panel =
+        document.getElementById(
+            "graphInsight"
+        );
+
+
+    if (!panel) {
+        return;
+    }
+
+
+    panel.innerHTML = `
+
+        <strong>
+            ${escapeHtml(
+                information.title ||
+                "Graph Item"
+            )}
+        </strong>
+
+        <div class="graph-insight-type">
+            ${escapeHtml(
+                information.type ||
+                "ENTITY"
+            )}
+        </div>
+
+        <div class="graph-insight-message">
+
+            ${escapeHtml(
+                information.message ||
+                ""
+            )}
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   GRAPH SEARCH DROPDOWNS
+========================================================= */
+
+function populateSearchSelects() {
+
+    const source =
+        document.getElementById(
+            "searchStartNode"
+        );
+
+
+    const target =
+        document.getElementById(
+            "searchTargetNode"
+        );
+
+
+    const selects =
+        [
+            source,
+            target
+        ];
+
+
+    selects.forEach(
+        select => {
+
+            if (!select) {
+                return;
+            }
+
+
+            select.innerHTML =
+                "";
+
+
+            select.appendChild(
+                optionElement(
+                    "",
+                    "Select a node"
+                )
+            );
+
+
+            if (
+                !graphInstance ||
+                !graphInstance.nodes().length
+            ) {
+
+                return;
+            }
+
+
+            graphInstance
+                .nodes()
+                .forEach(
+                    node => {
+
+                        const id =
+                            node.id();
+
+
+                        const label =
+                            node.data(
+                                "label"
+                            ) ||
+                            id;
+
+
+                        select.appendChild(
+                            optionElement(
+                                id,
+                                label
+                            )
+                        );
+
+                    }
+                );
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   OPTION
+========================================================= */
+
+function optionElement(
+    value,
+    text
+) {
+
+    const option =
+        document.createElement(
+            "option"
+        );
+
+
+    option.value =
+        value;
+
+
+    option.textContent =
+        text;
+
+
+    return option;
+
 }
 
 
@@ -2488,15 +4324,17 @@ function zoomGraphIn() {
         return;
     }
 
-    const currentZoom =
+
+    const current =
         graphInstance.zoom();
+
 
     graphInstance.zoom({
 
         level:
             Math.min(
-                currentZoom * 1.2,
-                3
+                current * 1.2,
+                3.5
             ),
 
         renderedPosition: {
@@ -2506,8 +4344,11 @@ function zoomGraphIn() {
 
             y:
                 graphInstance.height() / 2
+
         }
+
     });
+
 }
 
 
@@ -2521,14 +4362,16 @@ function zoomGraphOut() {
         return;
     }
 
-    const currentZoom =
+
+    const current =
         graphInstance.zoom();
+
 
     graphInstance.zoom({
 
         level:
             Math.max(
-                currentZoom / 1.2,
+                current / 1.2,
                 0.2
             ),
 
@@ -2539,33 +4382,16 @@ function zoomGraphOut() {
 
             y:
                 graphInstance.height() / 2
+
         }
+
     });
+
 }
 
 
 /* =========================================================
-   BACKWARD COMPATIBILITY
-========================================================= */
-
-function zoomGraph(amount) {
-
-    if (!graphInstance) {
-        return;
-    }
-
-    if (amount > 0) {
-        zoomGraphIn();
-    }
-
-    else {
-        zoomGraphOut();
-    }
-}
-
-
-/* =========================================================
-   GRAPH FIT
+   FIT GRAPH
 ========================================================= */
 
 function fitGraph() {
@@ -2574,15 +4400,17 @@ function fitGraph() {
         return;
     }
 
+
     graphInstance.fit(
-        undefined,
-        50
+        graphInstance.elements(),
+        60
     );
+
 }
 
 
 /* =========================================================
-   GRAPH RESET
+   RESET GRAPH
 ========================================================= */
 
 function resetGraph() {
@@ -2591,25 +4419,19 @@ function resetGraph() {
         return;
     }
 
+
     graphInstance
         .elements()
         .removeClass(
             "path-node path-edge"
         );
 
+
     graphInstance.fit(
-        undefined,
-        50
+        graphInstance.elements(),
+        60
     );
-}
 
-
-/* =========================================================
-   OLD HTML COMPATIBILITY
-========================================================= */
-
-function resetGraphZoom() {
-    resetGraph();
 }
 
 
@@ -2623,18 +4445,80 @@ function clearGraphPath() {
         return;
     }
 
+
     graphInstance
         .elements()
         .removeClass(
             "path-node path-edge"
         );
 
+
     fitGraph();
+
 }
 
 
 /* =========================================================
-   CONFIDENCE DISPLAY
+   MANUAL GRAPH REBUILD
+========================================================= */
+
+function rebuildGraph() {
+
+    if (
+        !lastInvestigation
+    ) {
+
+        const stored =
+            localStorage.getItem(
+                "last_investigation"
+            );
+
+
+        if (stored) {
+
+            try {
+
+                lastInvestigation =
+                    JSON.parse(
+                        stored
+                    );
+
+            }
+            catch (error) {
+
+                console.error(
+                    error
+                );
+
+            }
+
+        }
+
+    }
+
+
+    if (!lastInvestigation) {
+
+        showMessage(
+            "investigationMessage",
+            "No investigation data available.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    renderGraph(
+        lastInvestigation.graph_data ||
+        lastInvestigation.graph
+    );
+
+}
+
+
+/* =========================================================
+   CONFIDENCE
 ========================================================= */
 
 function displayConfidence(
@@ -2648,64 +4532,58 @@ function displayConfidence(
         );
 
 
-    /* =====================================================
-       MAIN CIRCLE
-    ===================================================== */
-
-    setText(
-        "confidenceCircle",
-        formatted
-    );
-
-
-    /* =====================================================
-       SMALL CONFIDENCE VALUE
-    ===================================================== */
-
     setText(
         "confidenceValue",
         formatted
     );
 
 
-    /* =====================================================
-       EXPLANATION
-    ===================================================== */
+    setText(
+        "resultConfidence",
+        formatted
+    );
 
-    const confidenceExplanation =
+
+    const explanationElement =
         document.getElementById(
             "confidenceExplanation"
         );
 
-    if (confidenceExplanation) {
 
-        if (Array.isArray(explanation)) {
+    if (
+        explanationElement
+    ) {
 
-            confidenceExplanation.textContent =
+        if (
+            Array.isArray(
+                explanation
+            )
+        ) {
+
+            explanationElement.textContent =
                 explanation.length
                     ? explanation.join(" ")
-                    : "Confidence calculated from detected entities, relationships and contradictions.";
+                    : "Confidence calculated from the extracted investigation evidence.";
 
         }
-
         else {
 
-            confidenceExplanation.textContent =
+            explanationElement.textContent =
                 String(
-                    explanation || ""
+                    explanation ||
+                    "Confidence calculated from the extracted investigation evidence."
                 );
+
         }
+
     }
 
-
-    /* =====================================================
-       CIRCLE ACCESSIBILITY
-    ===================================================== */
 
     const circle =
         document.getElementById(
             "confidenceCircle"
         );
+
 
     if (circle) {
 
@@ -2713,7 +4591,9 @@ function displayConfidence(
             "aria-label",
             `Bayesian confidence ${formatted}`
         );
+
     }
+
 }
 
 
@@ -2730,59 +4610,77 @@ function displayContradictions(
             "contradictionsList"
         );
 
+
     if (!container) {
         return;
     }
 
-    container.innerHTML = "";
+
+    container.innerHTML =
+        "";
+
 
     if (
-        !Array.isArray(contradictions) ||
-        contradictions.length === 0
+        !Array.isArray(
+            contradictions
+        ) ||
+        contradictions.length ===
+            0
     ) {
 
-        container.innerHTML =
-            "<div class='empty-state'>No contradictions detected.</div>";
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                No contradictions detected.
+
+            </div>
+        `;
 
         return;
     }
 
-    contradictions.forEach(item => {
 
-        const row =
-            document.createElement(
-                "div"
+    contradictions.forEach(
+        item => {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+
+            row.className =
+                "contradiction-item";
+
+
+            row.textContent =
+                typeof item ===
+                    "object"
+                    ? (
+                        item.message ||
+                        item.description ||
+                        JSON.stringify(
+                            item
+                        )
+                    )
+                    : String(
+                        item
+                    );
+
+
+            container.appendChild(
+                row
             );
 
-        row.className =
-            "contradiction-item";
-
-        if (
-            typeof item === "object"
-        ) {
-
-            row.textContent =
-                item.message ||
-                item.description ||
-                JSON.stringify(item);
-
         }
+    );
 
-        else {
-
-            row.textContent =
-                String(item);
-        }
-
-        container.appendChild(
-            row
-        );
-    });
 }
 
 
 /* =========================================================
-   AI EXPLANATION
+   EXPLANATION
 ========================================================= */
 
 function displayExplanation(
@@ -2794,66 +4692,73 @@ function displayExplanation(
             "explanationList"
         );
 
+
     if (!container) {
         return;
     }
 
-    container.innerHTML = "";
+
+    container.innerHTML =
+        "";
+
 
     if (
-        !Array.isArray(explanation) ||
-        explanation.length === 0
+        !Array.isArray(
+            explanation
+        ) ||
+        explanation.length ===
+            0
     ) {
 
-        const item =
-            document.createElement(
-                "div"
-            );
+        container.innerHTML = `
 
-        item.className =
-            "explanation-item";
+            <div class="explanation-item">
 
-        item.textContent =
-            "AI explanation will appear after investigation analysis.";
+                No explanation available.
 
-        container.appendChild(
-            item
-        );
+            </div>
+
+        `;
 
         return;
     }
 
-    explanation.forEach((item, index) => {
 
-        const row =
-            document.createElement(
-                "div"
+    explanation.forEach(
+        item => {
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+
+            row.className =
+                "explanation-item";
+
+
+            row.textContent =
+                typeof item ===
+                    "object"
+                    ? (
+                        item.message ||
+                        item.explanation ||
+                        JSON.stringify(
+                            item
+                        )
+                    )
+                    : String(
+                        item
+                    );
+
+
+            container.appendChild(
+                row
             );
 
-        row.className =
-            "explanation-item";
-
-        if (
-            typeof item === "object"
-        ) {
-
-            row.textContent =
-                item.message ||
-                item.explanation ||
-                JSON.stringify(item);
-
         }
+    );
 
-        else {
-
-            row.textContent =
-                String(item);
-        }
-
-        container.appendChild(
-            row
-        );
-    });
 }
 
 
@@ -2868,9 +4773,11 @@ async function loadAuditLogs() {
             "access_token"
         );
 
+
     if (!token) {
         return;
     }
+
 
     try {
 
@@ -2882,45 +4789,52 @@ async function loadAuditLogs() {
 
                     headers: {
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
                     }
                 }
             );
 
+
         if (!response.ok) {
             return;
         }
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         const logs =
-            Array.isArray(data.logs)
+            Array.isArray(
+                data.logs
+            )
                 ? data.logs
                 : [];
 
-        const logCount =
-            document.getElementById(
-                "logCount"
-            );
 
-        if (logCount) {
+        setText(
+            "logCount",
+            logs.length
+        );
 
-            logCount.textContent =
-                logs.length;
-        }
 
         const table =
             document.getElementById(
                 "auditTable"
             );
 
+
         if (!table) {
             return;
         }
 
-        table.innerHTML = "";
+
+        table.innerHTML =
+            "";
+
 
         if (!logs.length) {
 
@@ -2933,82 +4847,119 @@ async function loadAuditLogs() {
                     </td>
 
                 </tr>
+
             `;
 
             return;
         }
 
 
-        logs.forEach(log => {
+        logs.forEach(
+            log => {
 
-            const row =
-                document.createElement(
-                    "tr"
+                const row =
+                    document.createElement(
+                        "tr"
+                    );
+
+
+                const date =
+                    log.created_at
+                        ? new Date(
+                            log.created_at
+                        )
+                        : null;
+
+
+                const failed =
+                    /FAILED|ERROR/i.test(
+                        String(
+                            log.action ||
+                            ""
+                        )
+                    );
+
+
+                row.innerHTML = `
+
+                    <td>
+                        ${
+                            date
+                                ? escapeHtml(
+                                    date.toLocaleString()
+                                )
+                                : "—"
+                        }
+                    </td>
+
+                    <td>
+
+                        <strong>
+                            ${escapeHtml(
+                                log.action ||
+                                ""
+                            )}
+                        </strong>
+
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            currentUser?.username ||
+                            "—"
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            log.details ||
+                            ""
+                        )}
+                    </td>
+
+                    <td>
+
+                        <span class="log-status ${
+                            failed
+                                ? "failed"
+                                : "success"
+                        }">
+
+                            ${
+                                failed
+                                    ? "FAILED"
+                                    : "SUCCESS"
+                            }
+
+                        </span>
+
+                    </td>
+
+                `;
+
+
+                table.appendChild(
+                    row
                 );
 
-            const date =
-                log.created_at
-                    ? new Date(
-                        log.created_at
-                    )
-                    : new Date();
-
-            row.innerHTML = `
-
-                <td>
-                    ${escapeHtml(
-                        date.toLocaleString()
-                    )}
-                </td>
-
-                <td>
-
-                    <strong>
-                        ${escapeHtml(
-                            log.action || ""
-                        )}
-                    </strong>
-
-                </td>
-
-                <td>
-                    —
-                </td>
-
-                <td>
-                    ${escapeHtml(
-                        log.details || ""
-                    )}
-                </td>
-
-                <td>
-
-                    <span class="log-status success">
-                        SUCCESS
-                    </span>
-
-                </td>
-            `;
-
-            table.appendChild(
-                row
-            );
-        });
+            }
+        );
 
     }
-
     catch (error) {
 
         console.error(
             "Audit log error:",
             error
         );
+
     }
+
 }
 
 
 /* =========================================================
-   OPEN REPORT
+   REPORT
 ========================================================= */
 
 async function openReport() {
@@ -3025,10 +4976,12 @@ async function openReport() {
         return;
     }
 
+
     const file =
         lastInvestigation
             .report
             .file;
+
 
     if (!file) {
 
@@ -3039,28 +4992,30 @@ async function openReport() {
         return;
     }
 
+
     const fileName =
-        String(file)
-            .replace(/\\/g, "/")
-            .split("/")
+        String(
+            file
+        )
+            .replace(
+                /\\/g,
+                "/"
+            )
+            .split(
+                "/"
+            )
             .pop();
 
-    if (!fileName) {
-
-        alert(
-            "Invalid report filename."
-        );
-
-        return;
-    }
 
     const token =
         localStorage.getItem(
             "access_token"
         );
 
+
     const url =
-        `${API.replace("/api", "")}/reports/${encodeURIComponent(fileName)}`;
+        `${window.location.origin}/reports/${encodeURIComponent(fileName)}`;
+
 
     try {
 
@@ -3068,16 +5023,15 @@ async function openReport() {
             await fetch(
                 url,
                 {
-                    method: "GET",
-
                     headers: token
                         ? {
-                            "Authorization":
+                            Authorization:
                                 `Bearer ${token}`
                         }
                         : {}
                 }
             );
+
 
         if (!response.ok) {
 
@@ -3086,29 +5040,35 @@ async function openReport() {
             );
         }
 
+
         const blob =
             await response.blob();
 
-        const blobUrl =
+
+        const objectUrl =
             URL.createObjectURL(
                 blob
             );
 
+
         window.open(
-            blobUrl,
+            objectUrl,
             "_blank"
         );
 
-        setTimeout(() => {
 
-            URL.revokeObjectURL(
-                blobUrl
-            );
+        setTimeout(
+            () => {
 
-        }, 60000);
+                URL.revokeObjectURL(
+                    objectUrl
+                );
+
+            },
+            60000
+        );
 
     }
-
     catch (error) {
 
         console.error(
@@ -3116,10 +5076,13 @@ async function openReport() {
             error
         );
 
+
         alert(
             error.message
         );
+
     }
+
 }
 
 
@@ -3142,21 +5105,32 @@ async function downloadReport() {
         return;
     }
 
+
     const fileName =
         String(
-            lastInvestigation.report.file
+            lastInvestigation
+                .report
+                .file
         )
-            .replace(/\\/g, "/")
-            .split("/")
+            .replace(
+                /\\/g,
+                "/"
+            )
+            .split(
+                "/"
+            )
             .pop();
+
 
     const token =
         localStorage.getItem(
             "access_token"
         );
 
+
     const url =
-        `${API.replace("/api", "")}/reports/${encodeURIComponent(fileName)}`;
+        `${window.location.origin}/reports/${encodeURIComponent(fileName)}`;
+
 
     try {
 
@@ -3166,12 +5140,13 @@ async function downloadReport() {
                 {
                     headers: token
                         ? {
-                            "Authorization":
+                            Authorization:
                                 `Bearer ${token}`
                         }
                         : {}
                 }
             );
+
 
         if (!response.ok) {
 
@@ -3180,43 +5155,54 @@ async function downloadReport() {
             );
         }
 
+
         const blob =
             await response.blob();
 
-        const blobUrl =
+
+        const objectUrl =
             URL.createObjectURL(
                 blob
             );
+
 
         const link =
             document.createElement(
                 "a"
             );
 
+
         link.href =
-            blobUrl;
+            objectUrl;
+
 
         link.download =
             fileName;
+
 
         document.body.appendChild(
             link
         );
 
+
         link.click();
+
 
         link.remove();
 
-        setTimeout(() => {
 
-            URL.revokeObjectURL(
-                blobUrl
-            );
+        setTimeout(
+            () => {
 
-        }, 1000);
+                URL.revokeObjectURL(
+                    objectUrl
+                );
+
+            },
+            1000
+        );
 
     }
-
     catch (error) {
 
         console.error(
@@ -3224,91 +5210,1482 @@ async function downloadReport() {
             error
         );
 
+
         alert(
             error.message
         );
+
     }
+
 }
+
 
 /* =========================================================
-   REGISTER MODAL
+   CASE DASHBOARD
 ========================================================= */
 
-function showRegister() {
+async function loadCaseDashboard() {
 
-    const modal =
-        document.getElementById(
-            "registerModal"
+    const token =
+        localStorage.getItem(
+            "access_token"
         );
 
-    if (modal) {
 
-        modal.classList.remove(
-            "hidden"
-        );
+    if (!token) {
+        return;
     }
+
+
+    try {
+
+        const statsResponse =
+            await fetch(
+                `${API}/dashboard/stats`,
+                {
+                    headers: {
+
+                        Authorization:
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+
+        const casesResponse =
+            await fetch(
+                `${API}/cases`,
+                {
+                    headers: {
+
+                        Authorization:
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+
+        const stats =
+            await safeJson(
+                statsResponse
+            );
+
+
+        const cases =
+            await safeJson(
+                casesResponse
+            );
+
+
+        if (
+            !statsResponse.ok
+        ) {
+
+            console.warn(
+                "Dashboard stats unavailable:",
+                stats
+            );
+
+        }
+        else {
+
+            setText(
+                "caseCount",
+                stats.total || 0
+            );
+
+
+            setText(
+                "entityCount",
+                stats.entities || 0
+            );
+
+
+            setText(
+                "resultConfidence",
+                formatConfidence(
+                    stats.confidence || 0
+                )
+            );
+
+
+            setText(
+                "resultContradictions",
+                stats.contradictions || 0
+            );
+
+        }
+
+
+        renderCaseList(
+            cases.cases ||
+            []
+        );
+
+
+    }
+    catch (error) {
+
+        console.error(
+            "Case dashboard error:",
+            error
+        );
+
+    }
+
 }
 
 
-function hideRegister() {
+/* =========================================================
+   CASE LIST
+========================================================= */
+
+function renderCaseList(
+    cases
+) {
+
+    const box =
+        document.getElementById(
+            "caseList"
+        );
+
+
+    if (!box) {
+        return;
+    }
+
+
+    if (!cases.length) {
+
+        box.innerHTML = `
+
+            <div class="empty-state">
+
+                No investigation cases yet.
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+
+    box.innerHTML =
+        cases
+            .map(
+                caseItem => {
+
+                    const status =
+                        String(
+                            caseItem.status ||
+                            ""
+                        ).toUpperCase();
+
+
+                    const closed =
+                        status ===
+                        "CLOSED";
+
+
+                    return `
+
+                        <div class="case-row">
+
+                            <div class="case-info">
+
+                                <div class="case-title">
+
+                                    #${escapeHtml(
+                                        caseItem.id
+                                    )}
+
+                                    ·
+
+                                    ${escapeHtml(
+                                        caseItem.case_name ||
+                                        "Investigation"
+                                    )}
+
+                                </div>
+
+
+                                <div class="case-meta">
+
+                                    ${escapeHtml(
+                                        caseItem.created_at ||
+                                        ""
+                                    )}
+
+                                    ·
+
+                                    ${Number(
+                                        caseItem.entities_count ||
+                                        0
+                                    )}
+
+                                    entities
+
+                                    ·
+
+                                    ${Number(
+                                        caseItem.relations_count ||
+                                        0
+                                    )}
+
+                                    relationships
+
+                                </div>
+
+                            </div>
+
+
+                            <span class="case-status ${
+                                closed
+                                    ? "closed"
+                                    : "ongoing"
+                            }">
+
+                                ${
+                                    closed
+                                        ? "🔴 CLOSED"
+                                        : "🟢 ONGOING"
+                                }
+
+                            </span>
+
+
+                            <div class="case-actions">
+
+                                <button
+                                    type="button"
+                                    class="secondary-button"
+                                    onclick="openCaseDetails(${Number(
+                                        caseItem.id
+                                    )})"
+                                >
+                                    View
+                                </button>
+
+
+                                ${
+                                    closed
+                                        ? `
+                                            <button
+                                                type="button"
+                                                class="success-button"
+                                                onclick="changeCaseStatus(
+                                                    ${Number(caseItem.id)},
+                                                    'ONGOING'
+                                                )"
+                                            >
+                                                Reopen
+                                            </button>
+                                          `
+                                        : `
+                                            <button
+                                                type="button"
+                                                class="success-button"
+                                                onclick="changeCaseStatus(
+                                                    ${Number(caseItem.id)},
+                                                    'CLOSED'
+                                                )"
+                                            >
+                                                Close Case
+                                            </button>
+                                          `
+                                }
+
+
+                                <button
+                                    type="button"
+                                    class="danger-button"
+                                    onclick="deleteCase(${Number(
+                                        caseItem.id
+                                    )})"
+                                >
+                                    Delete
+                                </button>
+
+                            </div>
+
+                        </div>
+                    `;
+                }
+            )
+            .join("");
+
+}
+
+
+/* =========================================================
+   CHANGE CASE STATUS
+========================================================= */
+
+async function changeCaseStatus(
+    id,
+    status
+) {
+
+    const message =
+        status === "CLOSED"
+            ? "Close this case?"
+            : "Reopen this case?";
+
+
+    if (
+        !confirm(
+            message
+        )
+    ) {
+
+        return;
+    }
+
+
+    const token =
+        localStorage.getItem(
+            "access_token"
+        );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/cases/${id}/status`,
+                {
+
+                    method:
+                        "PATCH",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json",
+
+                        Authorization:
+                            `Bearer ${token}`
+
+                    },
+
+                    body:
+                        JSON.stringify({
+                            status:
+                                status
+                        })
+
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Could not update case."
+            );
+        }
+
+
+        await loadCaseDashboard();
+
+        await loadAuditLogs();
+
+
+    }
+    catch (error) {
+
+        console.error(
+            "Case status error:",
+            error
+        );
+
+
+        alert(
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   DELETE CASE
+========================================================= */
+
+async function deleteCase(
+    id
+) {
+
+    if (
+        !confirm(
+            "Are you sure you want to delete this case?"
+        )
+    ) {
+
+        return;
+    }
+
+
+    const token =
+        localStorage.getItem(
+            "access_token"
+        );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/cases/${id}`,
+                {
+
+                    method:
+                        "DELETE",
+
+                    headers: {
+
+                        Authorization:
+                            `Bearer ${token}`
+
+                    }
+
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Could not delete case."
+            );
+        }
+
+
+        await loadCaseDashboard();
+
+        await loadAuditLogs();
+
+    }
+    catch (error) {
+
+        console.error(
+            "Delete case error:",
+            error
+        );
+
+
+        alert(
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   OPEN CASE DETAILS
+========================================================= */
+
+async function openCaseDetails(
+    id
+) {
 
     const modal =
         document.getElementById(
-            "registerModal"
+            "caseDetailsModal"
         );
+
+
+    if (!modal) {
+
+        /*
+         * Your current index.html does not contain
+         * a caseDetailsModal, so don't crash.
+         */
+
+        return;
+    }
+
+
+    modal.classList.remove(
+        "hidden"
+    );
+
+
+    const body =
+        document.getElementById(
+            "caseDetailsBody"
+        );
+
+
+    if (body) {
+
+        body.innerHTML =
+            `<div class="empty-state">
+                Loading case details...
+            </div>`;
+
+    }
+
+
+    const token =
+        localStorage.getItem(
+            "access_token"
+        );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/cases/${id}`,
+                {
+                    headers: {
+
+                        Authorization:
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                "Could not load case."
+            );
+        }
+
+
+        const caseData =
+            data.case ||
+            {};
+
+
+        if (!body) {
+            return;
+        }
+
+
+        const closed =
+            String(
+                caseData.status ||
+                ""
+            ).toUpperCase() ===
+            "CLOSED";
+
+
+        body.innerHTML = `
+
+            <div class="case-detail-row">
+
+                <span>
+                    Case
+                </span>
+
+                <strong>
+
+                    #${escapeHtml(
+                        caseData.id
+                    )}
+
+                    ·
+
+                    ${escapeHtml(
+                        caseData.case_name ||
+                        "Investigation"
+                    )}
+
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Status
+                </span>
+
+                <strong>
+
+                    <span class="case-status ${
+                        closed
+                            ? "closed"
+                            : "ongoing"
+                    }">
+
+                        ${
+                            closed
+                                ? "🔴 CLOSED"
+                                : "🟢 ONGOING"
+                        }
+
+                    </span>
+
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Created
+                </span>
+
+                <strong>
+                    ${escapeHtml(
+                        caseData.created_at ||
+                        "—"
+                    )}
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Entities
+                </span>
+
+                <strong>
+                    ${Number(
+                        caseData.entities_count ||
+                        0
+                    )}
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Relationships
+                </span>
+
+                <strong>
+                    ${Number(
+                        caseData.relations_count ||
+                        0
+                    )}
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Confidence
+                </span>
+
+                <strong>
+                    ${formatConfidence(
+                        Number(
+                            caseData.confidence ||
+                            0
+                        )
+                    )}
+                </strong>
+
+            </div>
+
+
+            <div class="case-detail-row">
+
+                <span>
+                    Contradictions
+                </span>
+
+                <strong>
+                    ${Number(
+                        caseData.contradictions_count ||
+                        0
+                    )}
+                </strong>
+
+            </div>
+
+        `;
+
+    }
+    catch (error) {
+
+        console.error(
+            "Case detail error:",
+            error
+        );
+
+
+        if (body) {
+
+            body.innerHTML =
+                `<div class="empty-state">
+                    ${escapeHtml(
+                        error.message
+                    )}
+                </div>`;
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   SETTINGS CARD TOGGLE
+========================================================= */
+
+function toggleSettingsCard(
+    header
+) {
+
+    const card =
+        header
+            ? header
+                .closest(
+                    ".settings-card"
+                )
+            : null;
+
+
+    if (!card) {
+        return;
+    }
+
+
+    if (
+        header.dataset
+            .accordionBound ===
+        "1"
+    ) {
+
+        return;
+    }
+
+
+    card.classList.toggle(
+        "settings-card-open"
+    );
+
+}
+
+
+/* =========================================================
+   REQUEST RESET FROM SETTINGS
+========================================================= */
+
+async function requestResetFromSettings() {
+
+    const email =
+        document
+            .getElementById(
+                "resetEmail"
+            )
+            ?.value
+            .trim();
+
+
+    const message =
+        document.getElementById(
+            "settingsResetMessage"
+        );
+
+
+    if (!email) {
+
+        setText(
+            "settingsResetMessage",
+            "Please enter your registered email address."
+        );
+
+        return;
+    }
+
+
+    setText(
+        "settingsResetMessage",
+        "Requesting reset token..."
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/auth/forgot-password`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify(
+                        {
+                            email: email
+                        }
+                    )
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                data.message ||
+                "Unable to request a password reset."
+            );
+
+        }
+
+
+        const token =
+            data.reset_token ||
+            "";
+
+
+        if (token) {
+
+            document.getElementById(
+                "settingsResetToken"
+            ).value =
+                token;
+
+        }
+
+
+        const form =
+            document.getElementById(
+                "settingsResetForm"
+            );
+
+
+        if (form) {
+
+            form.classList.remove(
+                "hidden"
+            );
+
+        }
+
+
+        setText(
+            "settingsResetMessage",
+            data.message ||
+            "Reset token generated successfully."
+        );
+
+    }
+    catch (error) {
+
+        setText(
+            "settingsResetMessage",
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   COMPLETE RESET FROM SETTINGS
+========================================================= */
+
+async function completeResetFromSettings() {
+
+    const token =
+        document
+            .getElementById(
+                "settingsResetToken"
+            )
+            ?.value
+            .trim();
+
+
+    const newPassword =
+        document
+            .getElementById(
+                "settingsResetPassword"
+            )
+            ?.value;
+
+
+    const confirmPassword =
+        document
+            .getElementById(
+                "settingsResetConfirm"
+            )
+            ?.value;
+
+
+    if (!token) {
+
+        setText(
+            "settingsResetMessage",
+            "Please enter the reset token."
+        );
+
+        return;
+    }
+
+
+    if (
+        !newPassword ||
+        newPassword.length <
+            8
+    ) {
+
+        setText(
+            "settingsResetMessage",
+            "New password must be at least 8 characters."
+        );
+
+        return;
+    }
+
+
+    if (
+        newPassword !==
+        confirmPassword
+    ) {
+
+        setText(
+            "settingsResetMessage",
+            "Passwords do not match."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/auth/reset-password`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify(
+                        {
+                            token: token,
+                            new_password:
+                                newPassword
+                        }
+                    )
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                data.message ||
+                "Unable to reset password."
+            );
+
+        }
+
+
+        setText(
+            "settingsResetMessage",
+            data.message ||
+            "Password reset successfully."
+        );
+
+
+        const form =
+            document.getElementById(
+                "settingsResetForm"
+            );
+
+
+        if (form) {
+
+            form.classList.add(
+                "hidden"
+            );
+
+        }
+
+
+        document
+            .getElementById(
+                "settingsResetPassword"
+            ).value =
+            "";
+
+
+        document
+            .getElementById(
+                "settingsResetConfirm"
+            ).value =
+            "";
+
+
+    }
+    catch (error) {
+
+        setText(
+            "settingsResetMessage",
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   2FA LOGIN MODAL (LOGIN PAGE)
+========================================================= */
+
+function closeTwoFALoginModal() {
+
+    const modal =
+        document.getElementById(
+            "twoFALoginModal"
+        );
+
 
     if (modal) {
 
         modal.classList.add(
             "hidden"
         );
+
     }
+
 }
 
 
 /* =========================================================
-   PASSWORD VISIBILITY
+   FORGOT PASSWORD — MODAL TOGGLE (LOGIN PAGE)
 ========================================================= */
 
-function togglePassword(
-    inputId,
-    button
-) {
+function showForgotPassword() {
 
-    const input =
+    const modal =
         document.getElementById(
-            inputId
+            "forgotPasswordModal"
         );
 
-    if (!input) {
+
+    if (modal) {
+
+        modal.classList.remove(
+            "hidden"
+        );
+
+    }
+
+}
+
+
+function hideForgotPassword() {
+
+    const modal =
+        document.getElementById(
+            "forgotPasswordModal"
+        );
+
+
+    if (modal) {
+
+        modal.classList.add(
+            "hidden"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   REQUEST PASSWORD RESET (LOGIN PAGE)
+========================================================= */
+
+async function requestPasswordReset() {
+
+    const email =
+        document
+            .getElementById(
+                "forgotEmail"
+            )
+            ?.value
+            .trim();
+
+
+    if (!email) {
+
+        setText(
+            "forgotMessage",
+            "Please enter your registered email address."
+        );
+
         return;
     }
 
+
+    setText(
+        "forgotMessage",
+        "Requesting reset token..."
+    );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/auth/forgot-password`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify(
+                        {
+                            email: email
+                        }
+                    )
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                data.message ||
+                "Unable to request a password reset."
+            );
+
+        }
+
+
+        const token =
+            data.reset_token ||
+            "";
+
+
+        if (token) {
+
+            document.getElementById(
+                "resetToken"
+            ).value =
+                token;
+
+        }
+
+
+        const form =
+            document.getElementById(
+                "resetForm"
+            );
+
+
+        if (form) {
+
+            form.classList.remove(
+                "hidden"
+            );
+
+        }
+
+
+        setText(
+            "forgotMessage",
+            data.message ||
+            "Reset token generated successfully. Enter a new password below."
+        );
+
+    }
+    catch (error) {
+
+        setText(
+            "forgotMessage",
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   RESET PASSWORD (LOGIN PAGE)
+========================================================= */
+
+async function resetPassword() {
+
+    const token =
+        document
+            .getElementById(
+                "resetToken"
+            )
+            ?.value
+            .trim();
+
+
+    const newPassword =
+        document
+            .getElementById(
+                "resetNewPassword"
+            )
+            ?.value;
+
+
+    const confirmPassword =
+        document
+            .getElementById(
+                "resetConfirmPassword"
+            )
+            ?.value;
+
+
+    if (!token) {
+
+        setText(
+            "forgotMessage",
+            "Please enter the reset token."
+        );
+
+        return;
+    }
+
+
     if (
-        input.type ===
-        "password"
+        !newPassword ||
+        newPassword.length <
+            8
     ) {
 
-        input.type =
-            "text";
+        setText(
+            "forgotMessage",
+            "New password must be at least 8 characters."
+        );
 
-        if (button) {
-
-            button.textContent =
-                "Hide";
-        }
-
-    } else {
-
-        input.type =
-            "password";
-
-        if (button) {
-
-            button.textContent =
-                "Show";
-        }
+        return;
     }
+
+
+    if (
+        newPassword !==
+        confirmPassword
+    ) {
+
+        setText(
+            "forgotMessage",
+            "Passwords do not match."
+        );
+
+        return;
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${API}/auth/reset-password`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+                    body: JSON.stringify(
+                        {
+                            token: token,
+                            new_password:
+                                newPassword
+                        }
+                    )
+                }
+            );
+
+
+        const data =
+            await safeJson(
+                response
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                data.message ||
+                "Unable to reset password."
+            );
+
+        }
+
+
+        setText(
+            "forgotMessage",
+            data.message ||
+            "Password reset successfully."
+        );
+
+
+        document
+            .getElementById(
+                "resetNewPassword"
+            ).value =
+            "";
+
+
+        document
+            .getElementById(
+                "resetConfirmPassword"
+            ).value =
+            "";
+
+
+        setTimeout(
+            () => {
+
+                hideForgotPassword();
+
+            },
+            1200
+        );
+
+
+    }
+    catch (error) {
+
+        setText(
+            "forgotMessage",
+            error.message
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   CLOSE CASE DETAILS
+========================================================= */
+
+function closeCaseDetails() {
+
+    const modal =
+        document.getElementById(
+            "caseDetailsModal"
+        );
+
+
+    if (modal) {
+
+        modal.classList.add(
+            "hidden"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   SETTINGS ACCORDION
+========================================================= */
+
+function initSettingsAccordion() {
+
+    document
+        .querySelectorAll(
+            ".settings-card .settings-card-header"
+        )
+        .forEach(
+            header => {
+
+                if (
+                    header.dataset
+                        .accordionBound
+                ) {
+
+                    return;
+                }
+
+
+                header.dataset
+                    .accordionBound =
+                    "1";
+
+
+                header.addEventListener(
+                    "click",
+                    () => {
+
+                        header
+                            .parentElement
+                            .classList
+                            .toggle(
+                                "settings-open"
+                            );
+
+                    }
+                );
+
+            }
+        );
+
 }
 
 
@@ -3319,19 +6696,27 @@ function togglePassword(
 async function changePassword() {
 
     const currentPassword =
-        document.getElementById(
-            "currentPassword"
-        )?.value;
+        document
+            .getElementById(
+                "currentPassword"
+            )
+            ?.value;
+
 
     const newPassword =
-        document.getElementById(
-            "newPassword"
-        )?.value;
+        document
+            .getElementById(
+                "newPassword"
+            )
+            ?.value;
+
 
     const confirmPassword =
-        document.getElementById(
-            "confirmPassword"
-        )?.value;
+        document
+            .getElementById(
+                "confirmPassword"
+            )
+            ?.value;
 
 
     if (
@@ -3350,11 +6735,17 @@ async function changePassword() {
     }
 
 
-    if (newPassword.length < 8) {
+    const error =
+        passwordStrengthError(
+            newPassword
+        );
+
+
+    if (error) {
 
         showMessage(
             "passwordMessage",
-            "New password must contain at least 8 characters.",
+            error,
             "error"
         );
 
@@ -3382,36 +6773,47 @@ async function changePassword() {
             "access_token"
         );
 
+
     try {
 
         const response =
             await fetch(
                 `${API}/auth/change-password`,
                 {
-                    method: "POST",
+
+                    method:
+                        "POST",
 
                     headers: {
 
                         "Content-Type":
                             "application/json",
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
+
                     },
 
-                    body: JSON.stringify({
+                    body:
+                        JSON.stringify({
 
-                        current_password:
-                            currentPassword,
+                            current_password:
+                                currentPassword,
 
-                        new_password:
-                            newPassword
-                    })
+                            new_password:
+                                newPassword
+
+                        })
+
                 }
             );
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         if (!response.ok) {
 
@@ -3419,7 +6821,9 @@ async function changePassword() {
                 data.detail ||
                 "Password change failed."
             );
+
         }
+
 
         showMessage(
             "passwordMessage",
@@ -3427,20 +6831,25 @@ async function changePassword() {
             "success"
         );
 
+
         clearInput(
             "currentPassword"
         );
+
 
         clearInput(
             "newPassword"
         );
 
+
         clearInput(
             "confirmPassword"
         );
 
-    }
 
+        await loadAuditLogs();
+
+    }
     catch (error) {
 
         console.error(
@@ -3448,12 +6857,15 @@ async function changePassword() {
             error
         );
 
+
         showMessage(
             "passwordMessage",
             error.message,
             "error"
         );
+
     }
+
 }
 
 
@@ -3468,9 +6880,11 @@ async function setup2FA() {
             "access_token"
         );
 
+
     if (!token) {
         return;
     }
+
 
     try {
 
@@ -3478,18 +6892,24 @@ async function setup2FA() {
             await fetch(
                 `${API}/auth/2fa/setup`,
                 {
-                    method: "POST",
+                    method:
+                        "POST",
 
                     headers: {
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
+
                     }
                 }
             );
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         if (!response.ok) {
 
@@ -3505,6 +6925,7 @@ async function setup2FA() {
                 "twoFASecret"
             );
 
+
         if (secret) {
 
             secret.textContent =
@@ -3518,20 +6939,21 @@ async function setup2FA() {
                 "twoFASetup"
             );
 
+
         if (setup) {
 
             setup.classList.remove(
                 "hidden"
             );
+
         }
 
-
-        /* Show QR if backend returns one */
 
         const qr =
             document.getElementById(
                 "twoFAQr"
             );
+
 
         if (
             qr &&
@@ -3544,15 +6966,15 @@ async function setup2FA() {
             qr.classList.remove(
                 "hidden"
             );
+
         }
 
-
-        /* Show provisioning URI */
 
         const uri =
             document.getElementById(
                 "twoFAUri"
             );
+
 
         if (
             uri &&
@@ -3561,17 +6983,17 @@ async function setup2FA() {
 
             uri.textContent =
                 data.otpauth_url;
+
         }
 
 
         showMessage(
             "twoFAMessage",
-            "Secret generated. Add it to your authenticator app.",
+            "Secret generated. Add it to your authenticator application.",
             "success"
         );
 
     }
-
     catch (error) {
 
         console.error(
@@ -3579,12 +7001,15 @@ async function setup2FA() {
             error
         );
 
+
         showMessage(
             "twoFAMessage",
             error.message,
             "error"
         );
+
     }
+
 }
 
 
@@ -3602,9 +7027,12 @@ async function enable2FA() {
             ?.value
             .trim();
 
+
     if (
         !code ||
-        !/^\d{6}$/.test(code)
+        !/^\d{6}$/.test(
+            code
+        )
     ) {
 
         showMessage(
@@ -3616,10 +7044,12 @@ async function enable2FA() {
         return;
     }
 
+
     const token =
         localStorage.getItem(
             "access_token"
         );
+
 
     try {
 
@@ -3627,27 +7057,37 @@ async function enable2FA() {
             await fetch(
                 `${API}/auth/2fa/enable`,
                 {
-                    method: "POST",
+
+                    method:
+                        "POST",
 
                     headers: {
 
                         "Content-Type":
                             "application/json",
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
+
                     },
 
-                    body: JSON.stringify({
+                    body:
+                        JSON.stringify({
 
-                        code:
-                            code
-                    })
+                            code:
+                                code
+
+                        })
+
                 }
             );
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         if (!response.ok) {
 
@@ -3655,7 +7095,9 @@ async function enable2FA() {
                 data.detail ||
                 "Unable to enable 2FA."
             );
+
         }
+
 
         showMessage(
             "twoFAMessage",
@@ -3663,14 +7105,17 @@ async function enable2FA() {
             "success"
         );
 
+
         clearInput(
             "twoFACode"
         );
 
-        load2FAStatus();
+
+        await load2FAStatus();
+
+        await loadAuditLogs();
 
     }
-
     catch (error) {
 
         console.error(
@@ -3678,12 +7123,15 @@ async function enable2FA() {
             error
         );
 
+
         showMessage(
             "twoFAMessage",
             error.message,
             "error"
         );
+
     }
+
 }
 
 
@@ -3693,12 +7141,12 @@ async function enable2FA() {
 
 async function disable2FA() {
 
-    const confirmDisable =
-        confirm(
+    if (
+        !confirm(
             "Are you sure you want to disable 2FA?"
-        );
+        )
+    ) {
 
-    if (!confirmDisable) {
         return;
     }
 
@@ -3708,9 +7156,12 @@ async function disable2FA() {
             "Enter your current 6-digit authenticator code:"
         );
 
+
     if (
         !code ||
-        !/^\d{6}$/.test(code)
+        !/^\d{6}$/.test(
+            code
+        )
     ) {
 
         alert(
@@ -3726,33 +7177,44 @@ async function disable2FA() {
             "access_token"
         );
 
+
     try {
 
         const response =
             await fetch(
                 `${API}/auth/2fa/disable`,
                 {
-                    method: "POST",
+
+                    method:
+                        "POST",
 
                     headers: {
 
                         "Content-Type":
                             "application/json",
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
+
                     },
 
-                    body: JSON.stringify({
+                    body:
+                        JSON.stringify({
 
-                        code:
-                            code
-                    })
+                            code:
+                                code
+
+                        })
+
                 }
             );
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
+
 
         if (!response.ok) {
 
@@ -3760,7 +7222,9 @@ async function disable2FA() {
                 data.detail ||
                 "Unable to disable 2FA."
             );
+
         }
+
 
         showMessage(
             "twoFAMessage",
@@ -3768,10 +7232,12 @@ async function disable2FA() {
             "success"
         );
 
-        load2FAStatus();
+
+        await load2FAStatus();
+
+        await loadAuditLogs();
 
     }
-
     catch (error) {
 
         console.error(
@@ -3779,12 +7245,15 @@ async function disable2FA() {
             error
         );
 
+
         showMessage(
             "twoFAMessage",
             error.message,
             "error"
         );
+
     }
+
 }
 
 
@@ -3799,9 +7268,11 @@ async function load2FAStatus() {
             "access_token"
         );
 
+
     if (!token) {
         return;
     }
+
 
     try {
 
@@ -3809,22 +7280,31 @@ async function load2FAStatus() {
             await fetch(
                 `${API}/auth/2fa/status`,
                 {
-                    method: "GET",
+
+                    method:
+                        "GET",
 
                     headers: {
 
-                        "Authorization":
+                        Authorization:
                             `Bearer ${token}`
+
                     }
+
                 }
             );
 
+
         if (!response.ok) {
+
             return;
         }
 
+
         const data =
-            await safeJson(response);
+            await safeJson(
+                response
+            );
 
 
         const status =
@@ -3832,29 +7312,33 @@ async function load2FAStatus() {
                 "twoFAStatus"
             );
 
+
         if (status) {
+
+            const enabled =
+                Boolean(
+                    data.enabled
+                );
+
 
             status.textContent =
-                data.enabled
+                enabled
                     ? "Enabled"
                     : "Disabled";
-        }
 
-
-        /* Optional visual class */
-
-        if (status) {
 
             status.classList.remove(
                 "enabled",
                 "disabled"
             );
 
+
             status.classList.add(
-                data.enabled
+                enabled
                     ? "enabled"
                     : "disabled"
             );
+
         }
 
 
@@ -3863,595 +7347,217 @@ async function load2FAStatus() {
                 "enable2FAButton"
             );
 
+
         const disableButton =
             document.getElementById(
                 "disable2FAButton"
             );
 
+
         if (enableButton) {
 
             enableButton.classList.toggle(
                 "hidden",
-                Boolean(data.enabled)
+                Boolean(
+                    data.enabled
+                )
             );
+
         }
+
 
         if (disableButton) {
 
             disableButton.classList.toggle(
                 "hidden",
-                !data.enabled
+                !Boolean(
+                    data.enabled
+                )
             );
+
         }
 
     }
-
     catch (error) {
 
         console.error(
             "2FA status error:",
             error
         );
+
     }
+
 }
 
 
 /* =========================================================
-   FORGOT PASSWORD
+   REGISTER MODAL
 ========================================================= */
 
-function showForgotPassword() {
+function showRegister() {
 
     const modal =
         document.getElementById(
-            "forgotPasswordModal"
+            "registerModal"
         );
+
 
     if (modal) {
 
         modal.classList.remove(
             "hidden"
         );
+
     }
+
 }
 
 
-function hideForgotPassword() {
+function hideRegister() {
 
     const modal =
         document.getElementById(
-            "forgotPasswordModal"
+            "registerModal"
         );
+
 
     if (modal) {
 
         modal.classList.add(
             "hidden"
         );
+
     }
+
 }
 
 
 /* =========================================================
-   REQUEST PASSWORD RESET
+   PASSWORD VISIBILITY
 ========================================================= */
 
-async function requestPasswordReset() {
+function togglePassword(
+    inputId,
+    button
+) {
 
-    const email =
-        document
-            .getElementById(
-                "forgotEmail"
-            )
-            ?.value
-            .trim();
-
-    if (!email) {
-
-        showMessage(
-            "forgotMessage",
-            "Please enter your email.",
-            "error"
-        );
-
-        return;
-    }
-
-    try {
-
-        const response =
-            await fetch(
-                `${API}/auth/forgot-password`,
-                {
-                    method: "POST",
-
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-
-                        email:
-                            email
-                    })
-                }
-            );
-
-        const data =
-            await safeJson(response);
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.detail ||
-                "Unable to generate reset token."
-            );
-        }
-
-        showMessage(
-            "forgotMessage",
-            data.message ||
-            "Reset token generated.",
-            "success"
+    const input =
+        document.getElementById(
+            inputId
         );
 
 
-        const resetForm =
-            document.getElementById(
-                "resetForm"
-            );
-
-        if (resetForm) {
-
-            resetForm.classList.remove(
-                "hidden"
-            );
-        }
-
-
-        if (data.token) {
-
-            const tokenInput =
-                document.getElementById(
-                    "resetToken"
-                );
-
-            if (tokenInput) {
-
-                tokenInput.value =
-                    data.token;
-            }
-        }
-
-    }
-
-    catch (error) {
-
-        console.error(
-            "Forgot password error:",
-            error
-        );
-
-        showMessage(
-            "forgotMessage",
-            error.message,
-            "error"
-        );
-    }
-}
-
-
-/* =========================================================
-   RESET PASSWORD
-========================================================= */
-
-async function resetPassword() {
-
-    const token =
-        document
-            .getElementById(
-                "resetToken"
-            )
-            ?.value
-            .trim();
-
-    const password =
-        document
-            .getElementById(
-                "resetNewPassword"
-            )
-            ?.value;
-
-    const confirmPassword =
-        document
-            .getElementById(
-                "resetConfirmPassword"
-            )
-            ?.value;
-
-
-    if (
-        !token ||
-        !password ||
-        !confirmPassword
-    ) {
-
-        showMessage(
-            "forgotMessage",
-            "Please fill all reset fields.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (password.length < 8) {
-
-        showMessage(
-            "forgotMessage",
-            "Password must contain at least 8 characters.",
-            "error"
-        );
-
+    if (!input) {
         return;
     }
 
 
     if (
-        password !==
-        confirmPassword
+        input.type ===
+        "password"
     ) {
 
-        showMessage(
-            "forgotMessage",
-            "Passwords do not match.",
-            "error"
-        );
-
-        return;
-    }
+        input.type =
+            "text";
 
 
-    try {
+        if (button) {
 
-        const response =
-            await fetch(
-                `${API}/auth/reset-password`,
-                {
-                    method: "POST",
+            button.textContent =
+                "Hide";
 
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-
-                        token:
-                            token,
-
-                        new_password:
-                            password
-                    })
-                }
-            );
-
-        const data =
-            await safeJson(response);
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.detail ||
-                "Password reset failed."
-            );
         }
 
+    }
+    else {
 
-        showMessage(
-            "forgotMessage",
-            "Password reset successfully. You can now login.",
-            "success"
-        );
-
-
-        clearInput(
-            "resetToken"
-        );
-
-        clearInput(
-            "resetNewPassword"
-        );
-
-        clearInput(
-            "resetConfirmPassword"
-        );
+        input.type =
+            "password";
 
 
-        setTimeout(() => {
+        if (button) {
 
-            hideForgotPassword();
+            button.textContent =
+                "Show";
 
-        }, 1500);
+        }
 
     }
 
-    catch (error) {
-
-        console.error(
-            "Reset password error:",
-            error
-        );
-
-        showMessage(
-            "forgotMessage",
-            error.message,
-            "error"
-        );
-    }
 }
 
 
 /* =========================================================
-   SETTINGS - REQUEST RESET
+   PASSWORD STRENGTH
 ========================================================= */
 
-async function requestResetFromSettings() {
+function passwordStrengthError(
+    password
+) {
 
-    const email =
-        document
-            .getElementById(
-                "resetEmail"
-            )
-            ?.value
-            .trim();
+    if (!password) {
 
-    if (!email) {
+        return "Please enter a password.";
 
-        showMessage(
-            "settingsResetMessage",
-            "Please enter your email.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                `${API}/auth/forgot-password`,
-                {
-                    method: "POST",
-
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-
-                        email:
-                            email
-                    })
-                }
-            );
-
-        const data =
-            await safeJson(response);
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.detail ||
-                "Unable to generate reset token."
-            );
-        }
-
-
-        showMessage(
-            "settingsResetMessage",
-            data.message ||
-            "Reset token generated.",
-            "success"
-        );
-
-
-        const form =
-            document.getElementById(
-                "settingsResetForm"
-            );
-
-        if (form) {
-
-            form.classList.remove(
-                "hidden"
-            );
-        }
-
-
-        if (data.token) {
-
-            const tokenInput =
-                document.getElementById(
-                    "settingsResetToken"
-                );
-
-            if (tokenInput) {
-
-                tokenInput.value =
-                    data.token;
-            }
-        }
-
-    }
-
-    catch (error) {
-
-        console.error(
-            "Settings reset error:",
-            error
-        );
-
-        showMessage(
-            "settingsResetMessage",
-            error.message,
-            "error"
-        );
-    }
-}
-
-
-/* =========================================================
-   SETTINGS - COMPLETE RESET
-========================================================= */
-
-async function completeResetFromSettings() {
-
-    const token =
-        document
-            .getElementById(
-                "settingsResetToken"
-            )
-            ?.value
-            .trim();
-
-    const password =
-        document
-            .getElementById(
-                "settingsResetPassword"
-            )
-            ?.value;
-
-    const confirmPassword =
-        document
-            .getElementById(
-                "settingsResetConfirm"
-            )
-            ?.value;
-
-
-    if (
-        !token ||
-        !password ||
-        !confirmPassword
-    ) {
-
-        showMessage(
-            "settingsResetMessage",
-            "Please fill all reset fields.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (password.length < 8) {
-
-        showMessage(
-            "settingsResetMessage",
-            "Password must contain at least 8 characters.",
-            "error"
-        );
-
-        return;
     }
 
 
     if (
-        password !==
-        confirmPassword
+        password.length <
+        8
     ) {
 
-        showMessage(
-            "settingsResetMessage",
-            "Passwords do not match.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                `${API}/auth/reset-password`,
-                {
-                    method: "POST",
-
-                    headers: {
-
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-
-                        token:
-                            token,
-
-                        new_password:
-                            password
-                    })
-                }
-            );
-
-        const data =
-            await safeJson(response);
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.detail ||
-                "Password reset failed."
-            );
-        }
-
-
-        showMessage(
-            "settingsResetMessage",
-            "Password reset successfully.",
-            "success"
-        );
-
-
-        clearInput(
-            "settingsResetToken"
-        );
-
-        clearInput(
-            "settingsResetPassword"
-        );
-
-        clearInput(
-            "settingsResetConfirm"
-        );
+        return "Password must contain at least 8 characters.";
 
     }
 
-    catch (error) {
 
-        console.error(
-            "Settings password reset error:",
-            error
-        );
+    if (
+        !/[A-Z]/.test(
+            password
+        )
+    ) {
 
-        showMessage(
-            "settingsResetMessage",
-            error.message,
-            "error"
-        );
+        return "Password must contain at least one uppercase letter.";
+
     }
+
+
+    if (
+        !/[a-z]/.test(
+            password
+        )
+    ) {
+
+        return "Password must contain at least one lowercase letter.";
+
+    }
+
+
+    if (
+        !/[0-9]/.test(
+            password
+        )
+    ) {
+
+        return "Password must contain at least one number.";
+
+    }
+
+
+    if (
+        !/[^A-Za-z0-9]/.test(
+            password
+        )
+    ) {
+
+        return "Password must contain at least one special character.";
+
+    }
+
+
+    return null;
+
 }
 
 
@@ -4470,51 +7576,109 @@ function showMessage(
             elementId
         );
 
+
     if (!element) {
         return;
     }
 
+
     element.textContent =
         message;
 
+
     element.className =
-        `message ${type}`;
+        `message ${type || ""}`;
+
 }
 
 
 /* =========================================================
-   CONFIDENCE FORMAT
+   FORMAT CONFIDENCE
 ========================================================= */
 
-function formatConfidence(value) {
+function formatConfidence(
+    value
+) {
 
     if (
-        value === null ||
-        value === undefined ||
-        value === ""
+        value ===
+            null ||
+        value ===
+            undefined ||
+        value ===
+            ""
     ) {
 
         return "—";
     }
 
-    const number =
-        Number(value);
 
-    if (Number.isNaN(number)) {
+    const number =
+        Number(
+            value
+        );
+
+
+    if (
+        Number.isNaN(
+            number
+        )
+    ) {
+
         return "—";
     }
 
 
     /*
-       Backend normally returns 0.82.
-       Display = 82%.
-    */
+     * Backend returns values such as:
+     *
+     * 0.95
+     *
+     * which becomes:
+     *
+     * 95%
+     */
+
+    const percent =
+        number <= 1
+            ? number * 100
+            : number;
+
 
     return (
         Math.round(
-            number * 100
-        ) + "%"
+            percent
+        ) +
+        "%"
     );
+
+}
+
+
+/* =========================================================
+   SAFE JSON
+========================================================= */
+
+async function safeJson(
+    response
+) {
+
+    try {
+
+        return await response.json();
+
+    }
+    catch (error) {
+
+        return {
+
+            detail:
+                `Server returned HTTP ${response.status}.`
+
+        };
+
+    }
+
 }
 
 
@@ -4522,9 +7686,14 @@ function formatConfidence(value) {
    HTML ESCAPE
 ========================================================= */
 
-function escapeHtml(value) {
+function escapeHtml(
+    value
+) {
 
-    return String(value)
+    return String(
+        value ??
+        ""
+    )
 
         .replaceAll(
             "&",
@@ -4550,6 +7719,7 @@ function escapeHtml(value) {
             "'",
             "&#039;"
         );
+
 }
 
 
@@ -4567,11 +7737,14 @@ function setText(
             elementId
         );
 
+
     if (element) {
 
         element.textContent =
             value;
+
     }
+
 }
 
 
@@ -4588,31 +7761,105 @@ function clearInput(
             elementId
         );
 
+
     if (element) {
 
         element.value =
             "";
+
     }
+
 }
 
 
 /* =========================================================
-   SAFE JSON
+   GLOBAL FUNCTIONS
+   Required because your HTML uses onclick=""
 ========================================================= */
 
-async function safeJson(response) {
+window.login =
+    login;
 
-    try {
+window.register =
+    register;
 
-        return await response.json();
+window.logout =
+    logout;
 
-    }
+window.showPage =
+    showPage;
 
-    catch (error) {
+window.openInvestigation =
+    openInvestigation;
 
-        return {
-            detail:
-                `Server returned HTTP ${response.status}.`
-        };
-    }
-}
+window.runInvestigation =
+    runInvestigation;
+
+window.runSelectedAlgorithm =
+    runSelectedAlgorithm;
+
+window.openReport =
+    openReport;
+
+window.downloadReport =
+    downloadReport;
+
+window.zoomGraphIn =
+    zoomGraphIn;
+
+window.zoomGraphOut =
+    zoomGraphOut;
+
+window.fitGraph =
+    fitGraph;
+
+window.resetGraph =
+    resetGraph;
+
+window.clearGraphPath =
+    clearGraphPath;
+
+window.rebuildGraph =
+    rebuildGraph;
+
+window.changePassword =
+    changePassword;
+
+window.setup2FA =
+    setup2FA;
+
+window.enable2FA =
+    enable2FA;
+
+window.disable2FA =
+    disable2FA;
+
+window.togglePassword =
+    togglePassword;
+
+window.showRegister =
+    showRegister;
+
+window.hideRegister =
+    hideRegister;
+
+window.verifyLogin2FA =
+    verifyLogin2FA;
+
+window.requestResetFromSettings =
+    requestResetFromSettings;
+
+window.completeResetFromSettings =
+    completeResetFromSettings;
+
+window.openCaseDetails =
+    openCaseDetails;
+
+window.closeCaseDetails =
+    closeCaseDetails;
+
+window.changeCaseStatus =
+    changeCaseStatus;
+
+window.deleteCase =
+    deleteCase;

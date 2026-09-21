@@ -1854,3 +1854,76 @@ td {
         padding: 25px;
     }
 }
+
+/* =========================================================
+   FINAL CASE / DASHBOARD UI
+========================================================= */
+.system-status{display:inline-flex;align-items:center;gap:8px;color:#15803d;font-weight:700}
+.status-dot{width:9px;height:9px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 0 4px rgba(34,197,94,.12)}
+.case-list{display:flex;flex-direction:column;gap:12px}
+.case-row{display:flex;align-items:center;gap:16px;padding:16px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 4px 15px rgba(15,23,42,.04)}
+.case-info{flex:1;min-width:0}.case-title{font-weight:800}.case-meta{margin-top:6px;color:var(--muted);font-size:12px}
+.case-status{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap}.case-status.ongoing{color:#166534;background:#dcfce7;border:1px solid #86efac}.case-status.closed{color:#991b1b;background:#fee2e2;border:1px solid #fca5a5}
+.case-actions{display:flex;gap:8px}.success-button,.danger-button,.back-button{border:0;border-radius:9px;padding:9px 13px;font-weight:700;cursor:pointer}.success-button{background:#dcfce7;color:#166534}.danger-button{background:#fee2e2;color:#991b1b}.back-button{background:#fff;color:#334155;border:1px solid #cbd5e1;margin-bottom:16px}
+.relationship-reason{margin-top:9px;padding:10px 12px;border-radius:9px;background:#ecfdf5;border:1px solid #86efac;color:#166534;line-height:1.5;font-size:13px}.relationship-reason strong{display:block;margin-bottom:3px}
+.daily-chart{display:flex;align-items:flex-end;justify-content:space-around;gap:16px;min-height:210px;padding:20px;background:#fff;border:1px solid var(--border);border-radius:14px}.daily-bar-wrap{height:170px;flex:1;max-width:70px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}.daily-bar{width:32px;background:#2563eb;border-radius:7px 7px 3px 3px}.daily-count{font-size:12px;font-weight:800;margin-bottom:6px}.daily-label{font-size:12px;color:var(--muted);margin-top:8px}
+.settings-card .settings-card-header{cursor:pointer}.settings-card:not(.settings-open) .settings-card-body{display:none}.settings-card .settings-card-body{padding-top:16px}
+.logout-button span{display:inline-block;margin-left:5px}.logout-button{padding:9px 10px}
+@media(max-width:900px){.case-row{flex-direction:column;align-items:flex-start}.case-actions{margin-left:0}.daily-chart{gap:5px}}
+
+/* =========================================================
+   DASHBOARD STATISTICS GRID
+========================================================== */
+.statistics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.statistics-grid.result-stats{margin-top:24px}
+@media(max-width:1100px){.statistics-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.statistics-grid{grid-template-columns:1fr}}
+
+/* =========================================================
+   RELATIONSHIP REASON BOX (GREEN)
+========================================================== */
+.graph-reason-box{margin-top:14px;padding:14px 16px;border-radius:12px;background:#ecfdf5;border:1px solid #86efac;color:#065f46}
+.graph-reason-title{font-weight:800;font-size:13px;margin-bottom:4px;color:#065f46}
+.graph-reason-text{font-size:13px;line-height:1.5;color:#047857}
+
+/* =========================================================
+   SYSTEM OFFLINE STATE
+========================================================== */
+.system-status.offline{color:var(--red)}
+.system-status.offline .status-dot{background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.15)}
+
+/* =========================================================
+   SETTINGS ACCORDION CHEVRON
+========================================================== */
+.settings-card-header .settings-chevron{display:inline-block;transition:transform .25s ease}
+.settings-card.settings-open .settings-card-header .settings-chevron{transform:rotate(180deg)}
+
+/* =========================================================
+   MISCELLANEOUS UI
+========================================================== */
+.case-actions .secondary-button{background:#eef2ff;color:#3730a3}
+.case-actions .secondary-button:hover{background:#e0e7ff}
+.empty-state{padding:14px;color:var(--muted);font-size:13px;text-align:center}
+
+/* =========================================================
+   GRAPH SEARCH RUNNER
+========================================================== */
+.graph-search-controls{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:14px;align-items:end}
+.graph-search-panel select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);font:inherit}
+.graph-search-panel .primary-button{padding:11px 18px;white-space:nowrap}
+.search-result-details{margin-top:16px}
+.search-result-table td{padding:10px 14px}
+.search-result-table td:first-child{color:var(--muted);font-weight:700;width:180px;white-space:nowrap}
+@media(max-width:820px){.graph-search-controls{grid-template-columns:1fr 1fr}.graph-search-panel .primary-button{grid-column:1/-1}}
+@media(max-width:520px){.graph-search-controls{grid-template-columns:1fr}}
+
+/* =========================================================
+   CASE DETAILS MODAL
+========================================================== */
+.case-details-card{width:min(520px,100%)}
+.case-details-body{margin-top:18px}
+.case-detail-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.case-detail-row:last-child{border-bottom:0}
+.case-detail-row span{color:var(--muted);font-size:12px;font-weight:700}
+.case-detail-row strong{font-size:13px;text-align:right}
+.case-detail-row a{color:var(--primary);text-decoration:none;font-weight:700}

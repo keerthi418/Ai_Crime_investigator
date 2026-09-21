@@ -65,15 +65,13 @@ def _entity_type(entity):
     return ""
 
 
-def _make_relation(source, relation, target):
-    """
-    Create the standard relation structure.
-    """
-
+def _make_relation(source, relation, target, reason=""):
+    """Create an explainable relationship."""
     return {
         "source": source,
         "relation": relation,
-        "target": target
+        "target": target,
+        "reason": reason or f"The relationship '{relation}' was detected from the case evidence."
     }
 
 
@@ -188,13 +186,14 @@ def extract_relations(text, entities):
 
         relation_keys.add(relation_key)
 
-        relations.append(
-            _make_relation(
-                source,
-                relation,
-                target
-            )
-        )
+        reason = f"The case evidence indicates that {source} {relation} {target}."
+        # Prefer the shortest sentence containing both endpoints as the evidence reason.
+        for sentence in re.split(r"(?<=[.!?])\s+", text):
+            low = sentence.lower()
+            if source.lower() in low and target.lower() in low:
+                reason = sentence.strip()
+                break
+        relations.append(_make_relation(source, relation, target, reason))
 
     # --------------------------------------------------------
     # ENTITY LOOKUP HELPERS

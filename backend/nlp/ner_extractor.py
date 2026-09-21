@@ -1,10 +1,11 @@
 """
 Named Entity Recognition (NER)
--------------------------------
+------------------------------
 
 Extracts important entities from crime-investigation case text.
 
 Supported entity types:
+
     PERSON
     LOCATION
     DATE
@@ -48,6 +49,7 @@ KNOWN_LOCATIONS = {
 # ============================================================
 
 EVIDENCE_TERMS = {
+    "unauthorized transaction": "Unauthorized Transaction",
     "mobile phone": "Mobile Phone",
     "message records": "Message Records",
     "phone records": "Phone Records",
@@ -57,7 +59,6 @@ EVIDENCE_TERMS = {
     "fingerprint": "Fingerprint",
     "photograph": "Photograph",
     "transaction": "Bank Transaction",
-    "unauthorized transaction": "Unauthorized Transaction",
     "CCTV footage": "CCTV Footage",
     "camera": "Camera",
     "phone": "Phone",
@@ -142,6 +143,9 @@ IGNORED_PERSON_WORDS = {
     "Same",
     "Day",
     "Afternoon",
+    "Morning",
+    "Evening",
+    "Night",
 
     # Evidence words
     "Camera",
@@ -203,6 +207,7 @@ def add_entity(
     Add an entity only once.
 
     Example:
+
         Ravi Kumar -> PERSON
         Chennai -> LOCATION
         CCTV -> EVIDENCE
@@ -216,9 +221,13 @@ def add_entity(
     if not text:
         return
 
+    entity_type = str(
+        entity_type or "ENTITY"
+    ).strip().upper()
+
     key = (
-        text.lower(),
-        entity_type.upper()
+        text.casefold(),
+        entity_type
     )
 
     if key in seen:
@@ -227,7 +236,7 @@ def add_entity(
     entities.append(
         {
             "text": text,
-            "type": entity_type.upper()
+            "type": entity_type
         }
     )
 
@@ -246,10 +255,10 @@ def is_location(text):
     if not text:
         return False
 
-    text_lower = text.strip().lower()
+    text_lower = str(text).strip().casefold()
 
     return any(
-        text_lower == location.lower()
+        text_lower == location.casefold()
         for location in KNOWN_LOCATIONS
     )
 
@@ -263,6 +272,7 @@ def is_valid_ip(ip):
     Validate an IPv4 address.
 
     Example:
+
         192.168.1.10 -> True
         999.999.999.999 -> False
     """
@@ -270,17 +280,19 @@ def is_valid_ip(ip):
     if not ip:
         return False
 
-    parts = ip.split(".")
+    parts = str(ip).split(".")
 
     if len(parts) != 4:
         return False
 
     try:
         return all(
-            0 <= int(part) <= 255
+            part.isdigit()
+            and 0 <= int(part) <= 255
             for part in parts
         )
-    except ValueError:
+
+    except (ValueError, TypeError):
         return False
 
 
@@ -301,21 +313,14 @@ def extract_entities(text: str):
         MONEY
         IP ADDRESS
         TIME
-
-    Example:
-
-        Ravi Kumar reported an unauthorized transaction
-        of ₹85,000. Arun Sharma accessed the account
-        from IP address 192.168.1.10 in Chennai.
-        CCTV showed Arun Sharma near Ravi Kumar.
     """
 
     entities = []
     seen = set()
 
-    # --------------------------------------------------------
+    # ========================================================
     # SAFETY CHECK
-    # --------------------------------------------------------
+    # ========================================================
 
     if text is None:
         return entities
@@ -333,7 +338,6 @@ def extract_entities(text: str):
     # ========================================================
 
     date_patterns = [
-
         # 15 September 2026
         rf"\b\d{{1,2}}\s+(?:{MONTHS})\s+\d{{4}}\b",
 
@@ -368,9 +372,7 @@ def extract_entities(text: str):
     # 2. LOCATION EXTRACTION
     # ========================================================
 
-    # Longer locations first.
-    # This prevents partial matching.
-
+    # Longer locations first to avoid partial matches.
     for location in sorted(
         KNOWN_LOCATIONS,
         key=len,
@@ -400,12 +402,11 @@ def extract_entities(text: str):
     # 3. PERSON EXTRACTION
     # ========================================================
 
-    # Detect two-word names.
+    # Detect two-word names:
     #
-    # Examples:
-    #   Ravi Kumar
-    #   Arun Sharma
-    #   Priya Devi
+    # Ravi Kumar
+    # Arun Sharma
+    # Priya Devi
 
     full_name_pattern = (
         r"\b"
@@ -424,9 +425,13 @@ def extract_entities(text: str):
 
         words = name.split()
 
-        # Ignore phrases containing unwanted words.
+        # Ignore phrases containing known non-person words.
         if any(
-            word in IGNORED_PERSON_WORDS
+            word.casefold()
+            in {
+                ignored.casefold()
+                for ignored in IGNORED_PERSON_WORDS
+            }
             for word in words
         ):
             continue
@@ -461,20 +466,25 @@ def extract_entities(text: str):
         ):
             continue
 
-        # Check whether this person already belongs
-        # to an extracted full name.
-
+        # Check whether this person is already part
+        # of an extracted full name.
         already_full_name = any(
             entity["type"] == "PERSON"
-            and person.lower()
-            in entity["text"].lower().split()
+            and person.casefold()
+            in [
+                word.casefold()
+                for word in entity["text"].split()
+            ]
             for entity in entities
         )
 
         if already_full_name:
             continue
 
-        if person in IGNORED_PERSON_WORDS:
+        if person.casefold() in {
+            word.casefold()
+            for word in IGNORED_PERSON_WORDS
+        }:
             continue
 
         add_entity(
@@ -517,7 +527,6 @@ def extract_entities(text: str):
     # ========================================================
 
     money_patterns = [
-
         # ₹85,000
         r"₹\s?\d+(?:,\d{3})*(?:\.\d+)?",
 
@@ -562,7 +571,6 @@ def extract_entities(text: str):
     # ========================================================
 
     time_patterns = [
-
         # 10:32 PM
         r"\b\d{1,2}:\d{2}\s?(?:AM|PM)\b",
 
@@ -591,15 +599,7 @@ def extract_entities(text: str):
     # 8. EVIDENCE EXTRACTION
     # ========================================================
 
-    # Longer terms first.
-    #
-    # Example:
-    #
-    # Mobile Phone
-    #
-    # should be detected before:
-    #
-    # Phone
+    # Longer terms are checked first.
 
     sorted_evidence = sorted(
         EVIDENCE_TERMS.items(),
@@ -609,38 +609,39 @@ def extract_entities(text: str):
 
     for search_term, display_name in sorted_evidence:
 
+        # Use a normal word boundary for ordinary terms.
         pattern = (
             r"\b"
             + re.escape(search_term)
             + r"\b"
         )
 
-        if re.search(
+        if not re.search(
             pattern,
             text,
             re.IGNORECASE
         ):
+            continue
 
-            # Avoid adding generic "transaction"
-            # when "unauthorized transaction" is already
-            # represented.
-
-            if (
-                search_term == "transaction"
-                and re.search(
-                    r"\bunauthorized transaction\b",
-                    text,
-                    re.IGNORECASE
-                )
-            ):
-                continue
-
-            add_entity(
-                entities,
-                seen,
-                display_name,
-                "EVIDENCE"
+        # Avoid generic transaction when the more
+        # specific unauthorized transaction exists.
+        if (
+            search_term.casefold()
+            == "transaction"
+            and re.search(
+                r"\bunauthorized transaction\b",
+                text,
+                re.IGNORECASE
             )
+        ):
+            continue
+
+        add_entity(
+            entities,
+            seen,
+            display_name,
+            "EVIDENCE"
+        )
 
     # ========================================================
     # 9. ONLINE BANKING
@@ -771,64 +772,131 @@ def extract_entities(text: str):
         )
 
     # ========================================================
-    # 15. FINAL CLEANUP
+    # 15. EMAIL ADDRESS
+    # ========================================================
+
+    email_pattern = (
+        r"\b"
+        r"[A-Za-z0-9._%+-]+"
+        r"@"
+        r"[A-Za-z0-9.-]+"
+        r"\."
+        r"[A-Za-z]{2,}"
+        r"\b"
+    )
+
+    email_matches = re.findall(
+        email_pattern,
+        text
+    )
+
+    for email in email_matches:
+
+        add_entity(
+            entities,
+            seen,
+            email,
+            "EVIDENCE"
+        )
+
+    # ========================================================
+    # 16. PHONE NUMBER
+    # ========================================================
+
+    phone_patterns = [
+        # Indian-style mobile number
+        r"\b[6-9]\d{9}\b",
+
+        # +91 9876543210
+        r"\+91[\s-]?[6-9]\d{9}",
+    ]
+
+    for pattern in phone_patterns:
+
+        matches = re.findall(
+            pattern,
+            text
+        )
+
+        for phone in matches:
+
+            add_entity(
+                entities,
+                seen,
+                phone,
+                "EVIDENCE"
+            )
+
+    # ========================================================
+    # 17. FINAL CLEANUP
     # ========================================================
 
     cleaned_entities = []
+
+    obvious_non_persons = {
+        "cctv",
+        "phone",
+        "mobile",
+        "camera",
+        "transaction",
+        "bank",
+        "account",
+        "records",
+        "record",
+        "message",
+        "messages",
+        "login",
+        "evidence",
+        "vehicle",
+        "car",
+        "bike",
+        "laptop",
+        "document",
+        "video",
+        "weapon",
+        "gun",
+        "fingerprint",
+        "blood",
+    }
+
+    ignored_person_words_lower = {
+        word.casefold()
+        for word in IGNORED_PERSON_WORDS
+    }
 
     for entity in entities:
 
         entity_text = entity["text"]
         entity_type = entity["type"]
 
-        # -----------------------------------------------
+        # ----------------------------------------------------
         # PERSON cleanup
-        # -----------------------------------------------
+        # ----------------------------------------------------
 
         if entity_type == "PERSON":
 
-            if entity_text in IGNORED_PERSON_WORDS:
+            if (
+                entity_text.casefold()
+                in ignored_person_words_lower
+            ):
                 continue
 
             if is_location(entity_text):
                 continue
 
-            lower_entity = entity_text.lower()
-
-            obvious_non_persons = {
-                "cctv",
-                "phone",
-                "mobile",
-                "camera",
-                "transaction",
-                "bank",
-                "account",
-                "records",
-                "record",
-                "message",
-                "messages",
-                "login",
-                "evidence",
-                "vehicle",
-                "car",
-                "bike",
-                "laptop",
-                "document",
-                "video",
-                "weapon",
-                "gun",
-                "fingerprint",
-                "blood",
-            }
-
-            if lower_entity in obvious_non_persons:
+            if (
+                entity_text.casefold()
+                in obvious_non_persons
+            ):
                 continue
 
-        # -----------------------------------------------
+        # ----------------------------------------------------
         # Keep valid entity
-        # -----------------------------------------------
+        # ----------------------------------------------------
 
-        cleaned_entities.append(entity)
+        cleaned_entities.append(
+            entity
+        )
 
     return cleaned_entities
 

@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -10,9 +9,7 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>
-        AI Crime Investigator
-    </title>
+    <title>AI Crime Investigator</title>
 
     <link
         rel="stylesheet"
@@ -23,16 +20,12 @@
     <script
         src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js">
     </script>
-
 </head>
 
 
 <body>
 
-<div
-    id="app"
-    class="app"
->
+<div id="app" class="app">
 
 
     <!-- =====================================================
@@ -50,15 +43,8 @@
             </div>
 
             <div>
-
-                <strong>
-                    AI Crime
-                </strong>
-
-                <span>
-                    Investigator
-                </span>
-
+                <strong>AI Crime</strong>
+                <span>Investigator</span>
             </div>
 
         </div>
@@ -73,15 +59,8 @@
                 class="nav-item active"
                 onclick="showPage('dashboard', this)"
             >
-
-                <span class="nav-icon">
-                    📊
-                </span>
-
-                <span>
-                    Dashboard
-                </span>
-
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
             </button>
 
 
@@ -90,15 +69,8 @@
                 class="nav-item"
                 onclick="showPage('investigation', this)"
             >
-
-                <span class="nav-icon">
-                    🔎
-                </span>
-
-                <span>
-                    New Investigation
-                </span>
-
+                <span class="nav-icon">🔎</span>
+                <span>New Investigation</span>
             </button>
 
 
@@ -107,15 +79,8 @@
                 class="nav-item"
                 onclick="showPage('activity', this)"
             >
-
-                <span class="nav-icon">
-                    📋
-                </span>
-
-                <span>
-                    Audit Logs
-                </span>
-
+                <span class="nav-icon">📋</span>
+                <span>Audit Logs</span>
             </button>
 
 
@@ -124,15 +89,8 @@
                 class="nav-item"
                 onclick="showPage('profile', this)"
             >
-
-                <span class="nav-icon">
-                    👤
-                </span>
-
-                <span>
-                    Profile
-                </span>
-
+                <span class="nav-icon">👤</span>
+                <span>Profile</span>
             </button>
 
 
@@ -141,15 +99,8 @@
                 class="nav-item"
                 onclick="showPage('settings', this)"
             >
-
-                <span class="nav-icon">
-                    ⚙️
-                </span>
-
-                <span>
-                    Settings
-                </span>
-
+                <span class="nav-icon">⚙️</span>
+                <span>Settings</span>
             </button>
 
         </nav>
@@ -184,7 +135,7 @@
                 onclick="logout()"
                 title="Logout"
             >
-                ⎋
+                ⎋ <span>Logout</span>
             </button>
 
         </div>
@@ -199,7 +150,9 @@
     <main class="main">
 
 
-        <!-- TOP BAR -->
+        <!-- =================================================
+             TOP BAR
+        ================================================== -->
 
         <header class="topbar">
 
@@ -222,7 +175,9 @@
 
                     <span class="status-dot"></span>
 
-                    System Online
+                    <span id="systemStatusText">
+                        System Online
+                    </span>
 
                 </div>
 
@@ -248,13 +203,14 @@
 
 
         <!-- =================================================
-             DASHBOARD PAGE
+             DASHBOARD
         ================================================== -->
 
         <section
             id="dashboardPage"
             class="page active-page"
         >
+
 
             <!-- WELCOME -->
 
@@ -292,29 +248,92 @@
             </div>
 
 
-            <!-- STATISTICS -->
+            <!-- DASHBOARD STATISTICS -->
 
             <div class="statistics-grid">
 
-                <div class="stat-card">
+<div class="stat-card">
 
-                    <div class="stat-icon blue">
-                        📁
+                        <div class="stat-icon blue">
+                            📁
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Total Cases
+                            </span>
+
+                            <strong id="caseCount">
+                                0
+                            </strong>
+
+                        </div>
+
                     </div>
 
-                    <div>
 
-                        <span>
-                            Investigations
-                        </span>
+                    <div class="stat-card">
 
-                        <strong id="caseCount">
-                            0
-                        </strong>
+                        <div class="stat-icon green">
+                            🟢
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Ongoing Cases
+                            </span>
+
+                            <strong id="dashboardOngoing">
+                                0
+                            </strong>
+
+                        </div>
 
                     </div>
 
-                </div>
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon red">
+                            🔴
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Finished / Closed
+                            </span>
+
+                            <strong id="dashboardFinished">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon orange">
+                            ⏳
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Not Finished
+                            </span>
+
+                            <strong id="dashboardNotFinished">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
 
 
                 <div class="stat-card">
@@ -350,7 +369,7 @@
                             AI Confidence
                         </span>
 
-                        <strong id="resultConfidence">
+                        <strong id="dashboardConfidence">
                             —
                         </strong>
 
@@ -371,7 +390,7 @@
                             Contradictions
                         </span>
 
-                        <strong id="resultContradictions">
+                        <strong id="dashboardContradictions">
                             0
                         </strong>
 
@@ -480,6 +499,72 @@
             </div>
 
 
+            <!-- CASE MANAGEMENT -->
+
+            <div class="panel case-management-panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Investigation Cases
+                        </h3>
+
+                        <p>
+                            Green = ongoing investigation ·
+                            Red = closed case
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="caseList"
+                    class="case-list"
+                >
+
+                    <div class="empty-state">
+                        Loading cases...
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- DAILY ACTIVITY -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Daily Investigation Activity
+                        </h3>
+
+                        <p>
+                            Last 7 days
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="dailyChart"
+                    class="daily-chart"
+                >
+                </div>
+
+            </div>
+
+
             <!-- LAST RESULT -->
 
             <div
@@ -526,6 +611,15 @@
             class="page"
         >
 
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
             <!-- PAGE HEADER -->
 
             <div class="page-heading">
@@ -548,8 +642,6 @@
                 </div>
 
 
-                <!-- INVESTIGATION STATUS -->
-
                 <div
                     id="investigationStatus"
                     class="investigation-status ongoing"
@@ -560,7 +652,7 @@
             </div>
 
 
-            <!-- CASE INPUT PANEL -->
+            <!-- CASE INPUT -->
 
             <div class="panel">
 
@@ -569,17 +661,38 @@
                     <div>
 
                         <h3>
-                            Case Description
+                            Case Information
                         </h3>
 
                         <p>
-                            Enter the available case information below.
+                            Enter a case name and the available
+                            investigation evidence.
                         </p>
 
                     </div>
 
                 </div>
 
+
+                <!-- CASE NAME -->
+
+                <div class="form-group">
+
+                    <label for="caseName">
+                        Case Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="caseName"
+                        placeholder="Example: Chennai Banking Fraud"
+                        maxlength="150"
+                    >
+
+                </div>
+
+
+                <!-- CASE TEXT -->
 
                 <div class="form-group">
 
@@ -842,10 +955,8 @@
                                 Confidence
                             </span>
 
-                            <strong>
-                                <span id="resultConfidence">
-                                    —
-                                </span>
+                            <strong id="resultConfidence">
+                                —
                             </strong>
 
                         </div>
@@ -898,8 +1009,6 @@
                         </div>
 
 
-                        <!-- GRAPH CONTROLS -->
-
                         <div class="graph-controls">
 
                             <button
@@ -948,6 +1057,28 @@
                         id="cy"
                         class="cy"
                     ></div>
+
+
+                    <!-- RELATIONSHIP REASON -->
+
+                    <div
+                        id="graphReasonBox"
+                        class="graph-reason-box hidden"
+                    >
+
+                        <div class="graph-reason-title">
+                            🔗 Relationship Reason
+                        </div>
+
+                        <div
+                            id="graphReasonText"
+                            class="graph-reason-text"
+                        >
+                            Select a relationship in the graph
+                            to view its evidence.
+                        </div>
+
+                    </div>
 
                 </div>
 
@@ -1084,7 +1215,7 @@
                             </div>
 
                             <p id="bfsResult">
-                                No path found
+                                Not run yet
                             </p>
 
                         </div>
@@ -1116,7 +1247,7 @@
                             </div>
 
                             <p id="dfsResult">
-                                No path found
+                                Not run yet
                             </p>
 
                         </div>
@@ -1148,7 +1279,7 @@
                             </div>
 
                             <p id="astarResult">
-                                No path found
+                                Not run yet
                             </p>
 
                         </div>
@@ -1159,11 +1290,128 @@
 
 
                 <!-- =================================================
-                     CONFIDENCE
+                     GRAPH SEARCH RUNNER
+                ================================================== -->
+
+                <div class="panel graph-search-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Graph Search Runner
+                            </h3>
+
+                            <p>
+                                Run BFS, DFS or A* between two entities.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="graph-search-controls">
+
+                        <div class="form-group">
+
+                            <label for="searchStartNode">
+                                Source Node
+                            </label>
+
+                            <select
+                                id="searchStartNode"
+                            >
+
+                                <option value="">
+                                    Select a node
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="searchTargetNode">
+                                Destination Node
+                            </label>
+
+                            <select
+                                id="searchTargetNode"
+                            >
+
+                                <option value="">
+                                    Select a node
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="searchAlgorithm">
+                                Algorithm
+                            </label>
+
+                            <select
+                                id="searchAlgorithm"
+                            >
+
+                                <option value="BFS">
+                                    BFS
+                                </option>
+
+                                <option value="DFS">
+                                    DFS
+                                </option>
+
+                                <option value="A*">
+                                    A*
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <button
+                            type="button"
+                            class="primary-button"
+                            onclick="runGraphPathSearch()"
+                        >
+                            Run Search
+                        </button>
+
+                    </div>
+
+
+                    <div
+                        id="searchResultDetails"
+                        class="search-result-details hidden"
+                    >
+
+                        <div class="empty-state">
+                            Select source, destination and algorithm, then click Run Search.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     CONFIDENCE + CONTRADICTIONS
                 ================================================== -->
 
                 <div class="two-column">
 
+
+                    <!-- CONFIDENCE -->
 
                     <div class="panel">
 
@@ -1340,6 +1588,15 @@
             class="page"
         >
 
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
             <div class="page-heading">
 
                 <div>
@@ -1360,11 +1617,13 @@
 
 
                 <div class="stat-badge">
+
                     <strong id="logCount">
                         0
                     </strong>
 
                     Events
+
                 </div>
 
             </div>
@@ -1390,6 +1649,10 @@
 
                                 <th>
                                     User
+                                </th>
+
+                                <th>
+                                    Case
                                 </th>
 
                                 <th>
@@ -1435,6 +1698,15 @@
             class="page"
         >
 
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
             <div class="page-heading">
 
                 <div>
@@ -1455,6 +1727,8 @@
 
             </div>
 
+
+            <!-- PROFILE HEADER -->
 
             <div class="profile-card">
 
@@ -1489,6 +1763,96 @@
 
             </div>
 
+
+            <!-- PROFILE CASE STATISTICS -->
+
+            <div class="statistics-grid profile-statistics">
+
+                <div class="stat-card">
+
+                    <div class="stat-icon blue">
+                        📁
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Total Cases
+                        </span>
+
+                        <strong id="profileTotalCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon green">
+                        ✓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Finished Cases
+                        </span>
+
+                        <strong id="profileClosedCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon purple">
+                        🔎
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ongoing Cases
+                        </span>
+
+                        <strong id="profileOngoingCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon red">
+                        ⏳
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Not Finished
+                        </span>
+
+                        <strong id="profileNotFinishedCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
         </section>
 
 
@@ -1500,6 +1864,15 @@
             id="settingsPage"
             class="page"
         >
+
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
 
             <div class="page-heading">
 
@@ -1528,7 +1901,12 @@
 
             <div class="settings-card">
 
-                <div class="settings-card-header">
+                <button
+                    type="button"
+                    class="settings-card-header"
+                    onclick="toggleSettingsCard(this)"
+                    aria-expanded="true"
+                >
 
                     <div class="settings-icon">
                         🔑
@@ -1546,95 +1924,103 @@
 
                     </div>
 
-                </div>
+                    <span class="settings-chevron">
+                        ▼
+                    </span>
 
-
-                <div class="two-column">
-
-                    <div class="form-group">
-
-                        <label for="currentPassword">
-                            Current Password
-                        </label>
-
-                        <div class="password-wrapper">
-
-                            <input
-                                type="password"
-                                id="currentPassword"
-                                placeholder="Current password"
-                            >
-
-                            <button
-                                type="button"
-                                class="password-toggle"
-                                onclick="togglePassword('currentPassword', this)"
-                            >
-                                Show
-                            </button>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="form-group">
-
-                        <label for="newPassword">
-                            New Password
-                        </label>
-
-                        <div class="password-wrapper">
-
-                            <input
-                                type="password"
-                                id="newPassword"
-                                placeholder="Minimum 8 characters"
-                            >
-
-                            <button
-                                type="button"
-                                class="password-toggle"
-                                onclick="togglePassword('newPassword', this)"
-                            >
-                                Show
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="confirmPassword">
-                        Confirm New Password
-                    </label>
-
-                    <input
-                        type="password"
-                        id="confirmPassword"
-                        placeholder="Confirm new password"
-                    >
-
-                </div>
-
-
-                <div
-                    id="passwordMessage"
-                    class="message"
-                ></div>
-
-
-                <button
-                    type="button"
-                    class="primary-button"
-                    onclick="changePassword()"
-                >
-                    Update Password
                 </button>
+
+
+                <div class="settings-card-body">
+
+                    <div class="two-column">
+
+                        <div class="form-group">
+
+                            <label for="currentPassword">
+                                Current Password
+                            </label>
+
+                            <div class="password-wrapper">
+
+                                <input
+                                    type="password"
+                                    id="currentPassword"
+                                    placeholder="Current password"
+                                >
+
+                                <button
+                                    type="button"
+                                    class="password-toggle"
+                                    onclick="togglePassword('currentPassword', this)"
+                                >
+                                    Show
+                                </button>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="newPassword">
+                                New Password
+                            </label>
+
+                            <div class="password-wrapper">
+
+                                <input
+                                    type="password"
+                                    id="newPassword"
+                                    placeholder="Minimum 8 characters"
+                                >
+
+                                <button
+                                    type="button"
+                                    class="password-toggle"
+                                    onclick="togglePassword('newPassword', this)"
+                                >
+                                    Show
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="confirmPassword">
+                            Confirm New Password
+                        </label>
+
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            placeholder="Confirm new password"
+                        >
+
+                    </div>
+
+
+                    <div
+                        id="passwordMessage"
+                        class="message"
+                    ></div>
+
+
+                    <button
+                        type="button"
+                        class="primary-button"
+                        onclick="changePassword()"
+                    >
+                        Update Password
+                    </button>
+
+                </div>
 
             </div>
 
@@ -1645,7 +2031,12 @@
 
             <div class="settings-card">
 
-                <div class="settings-card-header">
+                <button
+                    type="button"
+                    class="settings-card-header"
+                    onclick="toggleSettingsCard(this)"
+                    aria-expanded="false"
+                >
 
                     <div class="settings-icon">
                         🛡️
@@ -1663,154 +2054,163 @@
 
                     </div>
 
-                </div>
+                    <span class="settings-chevron">
+                        ▼
+                    </span>
+
+                </button>
 
 
-                <!-- STATUS -->
+                <div class="settings-card-body hidden">
 
-                <div class="security-box">
+                    <!-- STATUS -->
 
-                    <div>
+                    <div class="security-box">
 
-                        <span class="profile-label">
-                            Current Status
-                        </span>
+                        <div>
 
-                        <strong id="twoFAStatus">
-                            Checking...
-                        </strong>
+                            <span class="profile-label">
+                                Current Status
+                            </span>
+
+                            <strong id="twoFAStatus">
+                                Checking...
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <button
+                                id="enable2FAButton"
+                                type="button"
+                                class="primary-button"
+                                onclick="setup2FA()"
+                            >
+                                Setup 2FA
+                            </button>
+
+
+                            <button
+                                id="disable2FAButton"
+                                type="button"
+                                class="danger-button hidden"
+                                onclick="disable2FA()"
+                            >
+                                Disable 2FA
+                            </button>
+
+                        </div>
 
                     </div>
 
 
-                    <div>
+                    <!-- SETUP -->
+
+                    <div
+                        id="twoFASetup"
+                        class="twoFA-setup hidden"
+                    >
+
+                        <h4>
+                            Authenticator Setup
+                        </h4>
+
+                        <p>
+                            Add the following secret to Google Authenticator,
+                            Microsoft Authenticator or another TOTP application.
+                        </p>
+
+
+                        <!-- QR -->
+
+                        <div class="qr-container">
+
+                            <img
+                                id="twoFAQr"
+                                class="hidden"
+                                alt="2FA QR Code"
+                            >
+
+                        </div>
+
+
+                        <!-- SECRET -->
+
+                        <div class="form-group">
+
+                            <label>
+                                Secret Key
+                            </label>
+
+                            <div
+                                id="twoFASecret"
+                                class="secret-key"
+                            >
+                                —
+                            </div>
+
+                        </div>
+
+
+                        <!-- URI -->
+
+                        <div class="form-group">
+
+                            <label>
+                                Provisioning URI
+                            </label>
+
+                            <div
+                                id="twoFAUri"
+                                class="secret-key"
+                            >
+                                —
+                            </div>
+
+                        </div>
+
+
+                        <!-- OTP -->
+
+                        <div class="form-group">
+
+                            <label for="twoFACode">
+                                Authenticator Code
+                            </label>
+
+                            <input
+                                type="text"
+                                id="twoFACode"
+                                class="otp-input"
+                                maxlength="6"
+                                inputmode="numeric"
+                                autocomplete="one-time-code"
+                                placeholder="000000"
+                            >
+
+                        </div>
+
 
                         <button
-                            id="enable2FAButton"
+                            id="enable2FAButtonSetup"
                             type="button"
                             class="primary-button"
-                            onclick="setup2FA()"
+                            onclick="enable2FA()"
                         >
-                            Setup 2FA
-                        </button>
-
-
-                        <button
-                            id="disable2FAButton"
-                            type="button"
-                            class="danger-button hidden"
-                            onclick="disable2FA()"
-                        >
-                            Disable 2FA
+                            Verify & Enable 2FA
                         </button>
 
                     </div>
 
-                </div>
 
-
-                <!-- SETUP -->
-
-                <div
-                    id="twoFASetup"
-                    class="twoFA-setup hidden"
-                >
-
-                    <h4>
-                        Authenticator Setup
-                    </h4>
-
-                    <p>
-                        Add the following secret to Google Authenticator,
-                        Microsoft Authenticator or another TOTP application.
-                    </p>
-
-
-                    <!-- QR -->
-
-                    <div class="qr-container">
-
-                        <img
-                            id="twoFAQr"
-                            class="hidden"
-                            alt="2FA QR Code"
-                        >
-
-                    </div>
-
-
-                    <!-- SECRET -->
-
-                    <div class="form-group">
-
-                        <label>
-                            Secret Key
-                        </label>
-
-                        <div
-                            id="twoFASecret"
-                            class="secret-key"
-                        >
-                            —
-                        </div>
-
-                    </div>
-
-
-                    <!-- URI -->
-
-                    <div class="form-group">
-
-                        <label>
-                            Provisioning URI
-                        </label>
-
-                        <div
-                            id="twoFAUri"
-                            class="secret-key"
-                        >
-                            —
-                        </div>
-
-                    </div>
-
-
-                    <!-- OTP -->
-
-                    <div class="form-group">
-
-                        <label for="twoFACode">
-                            Authenticator Code
-                        </label>
-
-                        <input
-                            type="text"
-                            id="twoFACode"
-                            class="otp-input"
-                            maxlength="6"
-                            inputmode="numeric"
-                            placeholder="000000"
-                        >
-
-                    </div>
-
-
-                    <button
-                        id="enable2FAButtonSetup"
-                        type="button"
-                        class="primary-button"
-                        onclick="enable2FA()"
-                    >
-                        Verify & Enable 2FA
-                    </button>
+                    <div
+                        id="twoFAMessage"
+                        class="message"
+                    ></div>
 
                 </div>
-
-
-                <div
-                    id="twoFAMessage"
-                    class="message"
-                ></div>
 
             </div>
 
@@ -1821,7 +2221,12 @@
 
             <div class="settings-card reset-card">
 
-                <div class="settings-card-header">
+                <button
+                    type="button"
+                    class="settings-card-header"
+                    onclick="toggleSettingsCard(this)"
+                    aria-expanded="false"
+                >
 
                     <div class="settings-icon">
                         🔄
@@ -1839,100 +2244,108 @@
 
                     </div>
 
-                </div>
+                    <span class="settings-chevron">
+                        ▼
+                    </span>
 
-
-                <div class="form-group">
-
-                    <label for="resetEmail">
-                        Account Email
-                    </label>
-
-                    <input
-                        type="email"
-                        id="resetEmail"
-                        placeholder="Enter registered email"
-                    >
-
-                </div>
-
-
-                <button
-                    type="button"
-                    class="secondary-button"
-                    onclick="requestResetFromSettings()"
-                >
-                    Generate Reset Token
                 </button>
 
 
-                <div
-                    id="settingsResetMessage"
-                    class="message"
-                ></div>
-
-
-                <!-- COMPLETE RESET -->
-
-                <form
-                    id="settingsResetForm"
-                    class="hidden"
-                    onsubmit="event.preventDefault(); completeResetFromSettings();"
-                >
+                <div class="settings-card-body hidden">
 
                     <div class="form-group">
 
-                        <label for="settingsResetToken">
-                            Reset Token
+                        <label for="resetEmail">
+                            Account Email
                         </label>
 
                         <input
-                            type="text"
-                            id="settingsResetToken"
-                            placeholder="Reset token"
-                        >
-
-                    </div>
-
-
-                    <div class="form-group">
-
-                        <label for="settingsResetPassword">
-                            New Password
-                        </label>
-
-                        <input
-                            type="password"
-                            id="settingsResetPassword"
-                            placeholder="Minimum 8 characters"
-                        >
-
-                    </div>
-
-
-                    <div class="form-group">
-
-                        <label for="settingsResetConfirm">
-                            Confirm Password
-                        </label>
-
-                        <input
-                            type="password"
-                            id="settingsResetConfirm"
-                            placeholder="Confirm password"
+                            type="email"
+                            id="resetEmail"
+                            placeholder="Enter registered email"
                         >
 
                     </div>
 
 
                     <button
-                        type="submit"
-                        class="primary-button"
+                        type="button"
+                        class="secondary-button"
+                        onclick="requestResetFromSettings()"
                     >
-                        Complete Password Reset
+                        Generate Reset Token
                     </button>
 
-                </form>
+
+                    <div
+                        id="settingsResetMessage"
+                        class="message"
+                    ></div>
+
+
+                    <!-- COMPLETE RESET -->
+
+                    <form
+                        id="settingsResetForm"
+                        class="hidden"
+                        onsubmit="event.preventDefault(); completeResetFromSettings();"
+                    >
+
+                        <div class="form-group">
+
+                            <label for="settingsResetToken">
+                                Reset Token
+                            </label>
+
+                            <input
+                                type="text"
+                                id="settingsResetToken"
+                                placeholder="Reset token"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsResetPassword">
+                                New Password
+                            </label>
+
+                            <input
+                                type="password"
+                                id="settingsResetPassword"
+                                placeholder="Minimum 8 characters"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsResetConfirm">
+                                Confirm Password
+                            </label>
+
+                            <input
+                                type="password"
+                                id="settingsResetConfirm"
+                                placeholder="Confirm password"
+                            >
+
+                        </div>
+
+
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            Complete Password Reset
+                        </button>
+
+                    </form>
+
+                </div>
 
             </div>
 
@@ -1943,7 +2356,7 @@
 
             <div class="settings-card danger-zone">
 
-                <div class="settings-card-header">
+                <div class="settings-card-header static-header">
 
                     <div class="settings-icon">
                         🚪
@@ -1964,19 +2377,79 @@
                 </div>
 
 
-                <button
-                    type="button"
-                    class="danger-button"
-                    onclick="logout()"
-                >
-                    Sign Out Securely
-                </button>
+                <div class="settings-card-body">
+
+                    <button
+                        type="button"
+                        class="danger-button"
+                        onclick="logout()"
+                    >
+                        Sign Out Securely
+                    </button>
+
+                </div>
 
             </div>
 
         </section>
 
     </main>
+
+</div>
+
+
+<!-- =========================================================
+     APPLICATION JAVASCRIPT
+========================================================= -->
+
+<!-- CASE DETAILS MODAL -->
+
+<div
+    id="caseDetailsModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card case-details-card">
+
+        <button
+            type="button"
+            class="modal-close"
+            onclick="closeCaseDetails()"
+            aria-label="Close case details"
+        >
+            ×
+        </button>
+
+
+        <div class="modal-header">
+
+            <div class="auth-icon">
+                📁
+            </div>
+
+            <h2>
+                Case Details
+            </h2>
+
+            <p>
+                Full summary of the selected investigation case.
+            </p>
+
+        </div>
+
+
+        <div
+            id="caseDetailsBody"
+            class="case-details-body"
+        >
+
+            <div class="empty-state">
+                Loading case details...
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 
