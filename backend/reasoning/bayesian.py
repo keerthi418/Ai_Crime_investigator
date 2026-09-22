@@ -14,6 +14,7 @@ Evidence Confidence Score
           + relation_score
           + source_corroboration
           + connectivity_bonus
+          + path_bonus
           - contradiction_penalty
 
 Where:
@@ -27,11 +28,18 @@ Where:
     connectivity_bonus    = 0.06 if the knowledge graph is fully
                             connected, else 0.02 when it has at
                             most two components, else 0.00
+    path_bonus            = 0.04 when a valid path exists between
+                            the investigated start and target nodes
+                            (real BFS/DFS/A* graph connectivity),
+                            else 0.00
     contradiction_penalty = min(0.12 * n_contradictions, 0.34)
 
 The final value is clamped to the range [0.0, 1.0] and the
 result is displayed to investigators as "Evidence Confidence
 Score: NN%".
+
+ONE value is computed here and returned to the API, the UI and
+the PDF — never a second, separately recalculated score.
 """
 
 
@@ -45,6 +53,7 @@ def calculate_confidence(
     contradictions=None,
     connected=False,
     components=1,
+    path_exists=None,
     **kwargs
 ):
     """
@@ -55,6 +64,8 @@ def calculate_confidence(
         - Relationships increase confidence.
         - Separately corroborating relationships increase more.
         - A connected graph increases confidence.
+        - A real path between the investigated start and target
+          increases confidence (actual BFS/DFS/A* connectivity).
         - Contradictions decrease confidence.
 
     Args:
@@ -72,6 +83,10 @@ def calculate_confidence(
 
         components (int, optional):
             Number of connected components in the graph.
+
+        path_exists (bool, optional):
+            Whether the requested start and target nodes are
+            connected by a real path in the knowledge graph.
 
     Returns:
         float:
@@ -161,6 +176,12 @@ def calculate_confidence(
         connectivity_bonus = 0.00
 
     # --------------------------------------------------------
+    # START -> TARGET PATH BONUS (real graph search)
+    # --------------------------------------------------------
+
+    path_bonus = 0.04 if path_exists else 0.00
+
+    # --------------------------------------------------------
     # CONTRADICTION PENALTY
     # --------------------------------------------------------
 
@@ -179,6 +200,7 @@ def calculate_confidence(
         + relation_score
         + source_corroboration
         + connectivity_bonus
+        + path_bonus
         - contradiction_penalty
     )
 
@@ -197,6 +219,9 @@ def explain_confidence(
     contradictions=None,
     connected=False,
     components=1,
+    path_exists=None,
+    start=None,
+    target=None,
     **kwargs
 ):
     """
@@ -220,6 +245,7 @@ def explain_confidence(
         contradictions=contradictions,
         connected=connected,
         components=components,
+        path_exists=path_exists,
     )
 
     explanation.append(
@@ -272,6 +298,22 @@ def explain_confidence(
             "connected component(s), reducing confidence."
         )
 
+    if path_exists:
+        pair = (
+            f"'{start}' and '{target}'"
+            if start and target
+            else "the selected start and target"
+        )
+        explanation.append(
+            f"A valid path exists between {pair}, "
+            "which supports the investigation."
+        )
+    elif path_exists is False and start and target:
+        explanation.append(
+            f"No path exists between '{start}' and '{target}' "
+            "in the knowledge graph."
+        )
+
     return explanation
 
 
@@ -285,6 +327,7 @@ def get_confidence_details(
     contradictions=None,
     connected=False,
     components=1,
+    path_exists=None,
     **kwargs
 ):
     """
@@ -351,6 +394,8 @@ def get_confidence_details(
     else:
         connectivity_bonus = 0.00
 
+    path_bonus = 0.04 if path_exists else 0.00
+
     contradiction_penalty = min(
         len(contradictions) * 0.12,
         0.34
@@ -362,6 +407,7 @@ def get_confidence_details(
         + relation_score
         + source_corroboration
         + connectivity_bonus
+        + path_bonus
         - contradiction_penalty
     )
 
@@ -379,6 +425,8 @@ def get_confidence_details(
             connectivity_bonus,
             2
         ),
+        "path_bonus": round(path_bonus, 2),
+        "path_exists": bool(path_exists),
         "contradiction_penalty": round(
             contradiction_penalty,
             2

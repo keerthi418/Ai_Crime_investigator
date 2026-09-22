@@ -1269,6 +1269,14 @@ def generate_pdf_report(
                 confidence
             )
 
+            # Confidence is stored as a 0.0-1.0 score.  Convert it
+            # to a percentage here so the PDF shows the SAME value
+            # as the UI (e.g. 0.9 -> "90%", never "0.9%").
+            if 0.0 <= confidence_number <= 1.0:
+                confidence_number = (
+                    confidence_number * 100
+                )
+
             confidence_text = (
                 f"{confidence_number:.1f}%"
             )
@@ -1939,6 +1947,115 @@ def generate_pdf_report(
             for item in path
         )
 
+    # The PDF shows the EXACT search_results structure the UI
+    # displays.  search_results is the single source of truth; the
+    # individually-passed bfs/dfs/astar lists are only a fallback.
+    def _search_path(label, fallback):
+
+        detail = search_results.get(label)
+
+        if isinstance(detail, dict):
+            detail_path = detail.get("path")
+            if detail_path:
+                return detail_path
+
+        return fallback
+
+    # Per-algorithm result block:
+    #
+    #     Start:  Arun Kumar
+    #     Target: Ravi
+    #     Status: PATH FOUND
+    #     Path:   Arun Kumar → [transferred_to] → Ravi
+    #     Length: 1
+    #
+    # Relation labels are taken from search_results.<label>.edges,
+    # which graph_store derives from the REAL NetworkX edges.
+    def _algorithm_block(label, fallback):
+
+        detail = search_results.get(label)
+
+        if not isinstance(detail, dict):
+            detail = {}
+
+        path = _search_path(label, fallback)
+
+        found = bool(path)
+
+        length = int(
+            detail.get(
+                "length",
+                detail.get(
+                    "path_length",
+                    max(0, len(path) - 1) if path else 0,
+                ),
+            )
+            or 0
+        )
+
+        edges = detail.get("edges") or []
+
+        if edges and len(path) > 1:
+
+            labeled = "".join(
+                (
+                    str(edge.get("source", ""))
+                    if index == 0
+                    else ""
+                )
+                + " → ["
+                + str(
+                    edge.get(
+                        "relation",
+                        "related_to",
+                    )
+                )
+                + "] → "
+                + str(edge.get("target", ""))
+                for index, edge
+                in enumerate(edges)
+            )
+
+        else:
+
+            labeled = path_text(path)
+
+        report_start = (
+            search_results.get("start")
+            or start
+            or "—"
+        )
+
+        report_target = (
+            search_results.get("target")
+            or target
+            or "—"
+        )
+
+        status = (
+            "PATH FOUND"
+            if found
+            else "NO PATH FOUND"
+        )
+
+        return Paragraph(
+            "<b>Start:</b> "
+            + safe_text(report_start)
+            + "<br/>"
+            + "<b>Target:</b> "
+            + safe_text(report_target)
+            + "<br/>"
+            + "<b>Status:</b> "
+            + status
+            + "<br/>"
+            + "<b>Path:</b> "
+            + safe_text(labeled)
+            + "<br/>"
+            + "<b>Length:</b> "
+            + str(length),
+            table_body_style,
+        )
+
     path_rows = [
 
         [
@@ -1948,7 +2065,7 @@ def generate_pdf_report(
             ),
 
             Paragraph(
-                "<b>Result</b>",
+                "<b>Start → Target (relation-aware)</b>",
                 table_header_style
             )
         ],
@@ -1959,10 +2076,7 @@ def generate_pdf_report(
                 table_body_style
             ),
 
-            Paragraph(
-                path_text(bfs_path),
-                table_body_style
-            )
+            _algorithm_block("BFS", bfs_path)
         ],
 
         [
@@ -1971,10 +2085,7 @@ def generate_pdf_report(
                 table_body_style
             ),
 
-            Paragraph(
-                path_text(dfs_path),
-                table_body_style
-            )
+            _algorithm_block("DFS", dfs_path)
         ],
 
         [
@@ -1983,10 +2094,7 @@ def generate_pdf_report(
                 table_body_style
             ),
 
-            Paragraph(
-                path_text(astar_path),
-                table_body_style
-            )
+            _algorithm_block("A*", astar_path)
         ]
     ]
 

@@ -11,7 +11,7 @@ Important rules:
       extracted entity, never an entire sentence.
     - Time / date values are only used as endpoints for
       meaningful edges (claimed, observed_at, recorded_at,
-      accessed_at, involved_in).  They are never chained to
+      accessed_at, accessed_on, event_date).  They are never chained to
       each other in the generic fallback.
     - Every relation carries an explainable confidence and
       the evidence snippet that produced it, so the graph
@@ -109,6 +109,136 @@ CORE_TYPES = (
 
 CARD_CODE_PATTERN = re.compile(r"^[A-Z]{2,6}-\d{2,6}$")
 CCTV_NAME_PATTERN = re.compile(r"cctv|video|camera", re.IGNORECASE)
+
+
+# ============================================================
+# ENTITY PRESENCE IN A SENTENCE
+# ============================================================
+#
+# A case narrative rarely repeats a person's full name every
+# time.  "Rahul Kumar" appears once in the text and afterwards
+# the story refers to the same person as "Rahul".  Because the
+# graph node is the full name, the relation extractor must be
+# able to resolve a first-name (or last-name) mention back to
+# the full extracted PERSON entity.  Otherwise every sentence
+# that uses the short form is treated as containing no known
+# person and no relation is created, leaving the person as an
+# isolated graph node.
+
+def _name_word_in_sentence(text_lower, lower):
+    """
+    Check whether any single word of a person's name appears as
+    a whole word (word boundary) in a sentence.
+
+    Examples (lowercased):
+
+        "rahul"        matches "rahul stated that he left ..."
+        "kumar"        matches "... kumar's employee card ..."
+        "sam"          does NOT match "... samsung device ..."
+        "rahul"        does NOT match "... rahulkumar ..."
+    """
+
+    for word in text_lower.split():
+
+        word = word.strip("'")
+
+        if len(word) <= 1:
+            continue
+
+        if re.search(
+            r"\b" + re.escape(word) + r"\b",
+            lower
+        ):
+            return True
+
+        # "Rahul Kumar's" -> the possessive form is preserved.
+        if re.search(
+            r"\b" + re.escape(word) + r"'(?:s|S)?\b",
+            lower
+        ):
+            return True
+
+    return False
+
+
+def _entity_in_sentence(entity, lower):
+    """
+    Decide whether an extracted entity is mentioned in a sentence.
+
+    Rules:
+
+        1. The canonical entity text appears verbatim in the
+           sentence (existing substring match).
+
+        2. For multi-word PERSON entities, any single name word
+           appearing as a whole word counts as a mention so texts
+           that switch between "Rahul Kumar" and "Rahul" still
+           connect the person to the evidence.
+
+    All other entity types require the full canonical phrase.
+    """
+
+    entity_text = _entity_text(entity)
+
+    if not entity_text:
+        return False
+
+    text_lower = entity_text.casefold()
+
+    if text_lower in lower:
+        return True
+
+    if _entity_type(entity) in PERSON_TYPES:
+        return _name_word_in_sentence(text_lower, lower)
+
+    return False
+
+
+def _name_in_lower(value, lower):
+    """
+    Return the earliest whole-word position of any name word of a
+    PERSON entity in a lowercased sentence (or -1 if absent).
+
+    This mirrors _name_word_in_sentence() but yields a position so
+    rules that need sentence DIRECTION (sender before a verb,
+    recipient after "to", driver after "driver is") can resolve the
+    subject and object correctly.
+
+        _name_in_lower("Arun Kumar", "arun transferred ...") == 0
+        _name_in_lower("Ravi",       "arun ... to ravi")      == 17
+        _name_in_lower("Ravi",       "no mention")            == -1
+    """
+
+    if not value or not lower:
+        return -1
+
+    positions = []
+
+    for word in str(value).split():
+
+        word = word.strip("'").casefold()
+
+        if len(word) <= 1:
+            continue
+
+        match = re.search(
+            r"\b" + re.escape(word) + r"\b",
+            lower,
+        )
+
+        if match:
+            positions.append(match.start())
+            continue
+
+        match = re.search(
+            r"\b" + re.escape(word) + r"'(?:s|S)?\b",
+            lower,
+        )
+
+        if match:
+            positions.append(match.start())
+
+    return min(positions) if positions else -1
 
 
 # ============================================================
@@ -253,6 +383,12 @@ def extract_relations(text, entities):
         if entity["type"] in DATE_TYPES
     ]
 
+    money = [
+        entity["text"]
+        for entity in normalized_entities
+        if entity["type"] in {"MONEY"}
+    ]
+
     def entity_not_in(entities_list, value):
         value_lower = _clean(value).lower()
         return not any(
@@ -357,11 +493,17 @@ def extract_relations(text, entities):
 
         lower = sentence.lower()
 
-        # Entities mentioned in this sentence.
+        # Entities mentioned in this sentence.  A person addressed
+        # only by first name ("Rahul" instead of "Rahul Kumar")
+        # still resolves to the full PERSON entity so the graph
+        # stays connected to the extracted name.
         present = [
             entity["text"]
             for entity in normalized_entities
-            if entity["text"].lower() in lower
+            if _entity_in_sentence(
+                entity,
+                lower,
+            )
         ]
 
         # Deduplicate while preserving order.
@@ -385,6 +527,7 @@ def extract_relations(text, entities):
         present_cctv = present_of(cctv_devices)
         present_times = present_of(times)
         present_dates = present_of(dates)
+        present_money = present_of(money)
 
         # ----------------------------------------------------
         # A. THEFT / MISSING
@@ -401,57 +544,76 @@ def extract_relations(text, entities):
             for phrase in theft_phrases
         ):
 
+            # A bare reference to "the theft" (e.g. "two days
+            # before the theft") is an EVENT reference, not a
+            # reporting verb.  The person -> reported -> evidence
+            # edge is therefore only produced when the sentence
+            # literally states that someone reported something.
+            reported_literal = "reported" in lower
+
             for evidence_item in present_evidence:
 
                 # The reporting person -> the stolen item.
-                for person in present_people:
-                    add(
-                        person,
-                        "reported",
-                        evidence_item,
-                        reason=sentence,
-                        confidence=0.9,
-                    )
+                if reported_literal:
+                    for person in present_people:
+                        add(
+                            person,
+                            "reported",
+                            evidence_item,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
 
                 # Stolen item -> location / organization it
-                # disappeared from.
-                for location in present_locations:
-                    add(
-                        evidence_item,
-                        "stolen_from",
-                        location,
-                        reason=sentence,
-                        confidence=0.9,
+                # disappeared from.  Requires an actual theft
+                # verb so neutral phrases such as "before the
+                # theft" never invent a stolen_from edge.
+                if any(
+                    phrase in lower
+                    for phrase in (
+                        "stolen", "steal", "stole", "went missing",
+                        "robbed", "robbery", "took the",
+                        "broke in", "breaking in",
                     )
+                ):
+                    for location in present_locations:
+                        add(
+                            evidence_item,
+                            "stolen_from",
+                            location,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
 
-                for organization in present_orgs:
-                    add(
-                        evidence_item,
-                        "stolen_from",
-                        organization,
-                        reason=sentence,
-                        confidence=0.9,
-                    )
+                    for organization in present_orgs:
+                        add(
+                            evidence_item,
+                            "stolen_from",
+                            organization,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
 
                 if present_dates:
                     add(
                         evidence_item,
-                        "involved_in",
+                        "event_date",
                         present_dates[0],
                         reason=sentence,
                         confidence=0.75,
                     )
 
                 # The reported time of the incident.
-                for person in present_people:
-                    for time_value in present_times:
-                        add(
-                            person,
-                            "reported_at",
-                            time_value,
-                            reason=sentence,
-                            confidence=0.75,
-                        )
+                if reported_literal:
+                    for person in present_people:
+                        for time_value in present_times:
+                            add(
+                                person,
+                                "reported_at",
+                                time_value,
+                                reason=sentence,
+                                confidence=0.75,
+                            )
 
                 for time_value in present_times:
                     add(
@@ -461,6 +623,101 @@ def extract_relations(text, entities):
                         reason=sentence,
                         confidence=0.75,
                     )
+
+        # ----------------------------------------------------
+        # A2. OWNERSHIP
+        # ----------------------------------------------------
+        #
+        # "The laptop belonged to employee Priya Sharma."
+        # creates:
+        #
+        #     Laptop --belonged_to--> Priya Sharma
+        #
+        # The victim of a theft is otherwise never connected to
+        # the stolen evidence and is left as an isolated node.
+
+        ownership_phrases = (
+            "belonged to", "belongs to", "belonging to",
+            "belonged", "owned by", "owned", "owner of",
+        )
+
+        if any(
+            phrase in lower
+            for phrase in ownership_phrases
+        ):
+
+            # Evidence -> owning organization (preferred).  When
+            # an organization is stated ("belongs to FastMove
+            # Logistics") the person in the sentence must NOT be
+            # reported as the owner.
+            if present_orgs:
+
+                for evidence_item in present_evidence:
+                    for organization in present_orgs:
+                        add(
+                            evidence_item,
+                            "belonged_to",
+                            organization,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
+
+            # Evidence -> owning person (fallback when no
+            # organization is mentioned).
+            else:
+
+                for evidence_item in present_evidence:
+                    for person in present_people:
+                        add(
+                            evidence_item,
+                            "belonged_to",
+                            person,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
+
+            # Person -> owner_of -> premise / organization.
+            #
+            # "A second person, Karthik, was identified as the
+            # owner of a temporary storage location near the
+            # warehouse." should produce ONLY:
+            #
+            #     Karthik --owner_of--> Temporary Storage Location
+            #
+            # The owned object is the premise that FOLLOWS the
+            # "owner of" phrase, so it is resolved positionally.
+            if present_people and "owner of" in lower:
+
+                owner_index = lower.find("owner of")
+
+                owner_candidates = []
+                for owned in present_locations + present_orgs:
+                    position = lower.find(owned.casefold())
+                    if position != -1:
+                        owner_candidates.append(
+                            (position, owned)
+                        )
+
+                if owner_candidates:
+                    # Nearest premise after "owner of"; fall back
+                    # to the nearest overall match.
+                    after_owner = [
+                        (position, owned)
+                        for position, owned in owner_candidates
+                        if position >= owner_index
+                    ]
+                    chosen = min(
+                        after_owner or owner_candidates
+                    )[1]
+
+                    for person in present_people:
+                        add(
+                            person,
+                            "owner_of",
+                            chosen,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
 
         # ----------------------------------------------------
         # B. CLAIMED / STATEMENTS
@@ -544,6 +801,145 @@ def extract_relations(text, entities):
                         time_value,
                         reason=sentence,
                         confidence=0.85,
+                    )
+
+        # ----------------------------------------------------
+        # C2. PERSON NEAR A LOCATION (without "seen" wording)
+        # ----------------------------------------------------
+        #
+        # "CCTV Camera 03 recorded Rahul Kumar near the Server
+        # Room" has no "seen / observed" wording, yet it still
+        # connects Rahul Kumar to the Server Room.  A bare
+        # "near / close to / next to" presence is therefore its
+        # own rule so the graph stays connected and the
+        # "seen_near" relation is produced regardless of the
+        # camera phrasing being used.
+
+        near_terms = (
+            "near", "close to", "next to",
+        )
+
+        if any(
+            term in lower
+            for term in near_terms
+        ):
+
+            # A premise that is "near" another premise without any
+            # person being observed.
+            #
+            # "... owner of a temporary storage location near the
+            #  warehouse."            ->
+            #     Temporary Storage Location --near--> Warehouse
+            if len(present_locations) >= 2:
+
+                near_index = min(
+                    index
+                    for term in near_terms
+                    if (index := lower.find(term)) != -1
+                )
+
+                before_locations = [
+                    location
+                    for location in present_locations
+                    if lower.find(location.casefold()) != -1
+                    and lower.find(location.casefold()) < near_index
+                ]
+
+                after_locations = [
+                    location
+                    for location in present_locations
+                    if lower.find(location.casefold()) != -1
+                    and lower.find(location.casefold()) > near_index
+                ]
+
+                if before_locations and after_locations:
+                    near_source = max(
+                        before_locations,
+                        key=lambda loc: lower.find(loc.casefold()),
+                    )
+                    near_target = min(
+                        after_locations,
+                        key=lambda loc: lower.find(loc.casefold()),
+                    )
+                    add(
+                        near_source,
+                        "near",
+                        near_target,
+                        reason=sentence,
+                        confidence=0.85,
+                    )
+
+            # Person -> nearby premise.  Skipped when the person
+            # is declared the OWNER of a premise in the same
+            # sentence, because "... the owner of a temporary
+            # storage location near the warehouse" describes the
+            # premise as near the warehouse, not the owner.
+            if (
+                present_people
+                and present_locations
+                and "owner of" not in lower
+            ):
+
+                for person in present_people:
+                    for location in present_locations:
+                        add(
+                            person,
+                            "seen_near",
+                            location,
+                            reason=sentence,
+                            confidence=0.85,
+                        )
+
+        # ----------------------------------------------------
+        # C3. WITNESSED (person -> person)
+        # ----------------------------------------------------
+        #
+        # "Arun Das witnessed Rahul Kumar near the Server Room"
+        # creates the directional relation:
+        #
+        #     Arun Das --witnessed--> Rahul Kumar
+        #
+        # Only the witness reports the subject, so the relation
+        # is produced from the words BEFORE "witnessed" toward
+        # the words AFTER it (never the reverse).
+
+        witness_terms = (
+            "witnessed", "witnessing", "witnesses", "witness",
+        )
+
+        witness_position = next(
+            (
+                index
+                for term in witness_terms
+                if (index := lower.find(term)) != -1
+            ),
+            None,
+        )
+
+        if witness_position is not None:
+
+            before_people = [
+                person
+                for person in present_people
+                if person.casefold() in lower[:witness_position]
+            ]
+
+            after_people = [
+                person
+                for person in present_people
+                if person.casefold() in lower[
+                    witness_position:
+                ]
+            ]
+
+            for subject in before_people:
+                for witness_target in after_people:
+                    add(
+                        subject,
+                        "witnessed",
+                        witness_target,
+                        reason=sentence,
+                        confidence=0.9,
                     )
 
         # ----------------------------------------------------
@@ -651,6 +1047,236 @@ def extract_relations(text, entities):
                         confidence=0.8,
                     )
 
+            # The person behind the entry.  "Rahul Kumar's
+            # employee card was used to enter the room at 8:05 PM"
+            # contains no extracted card node, but it still proves
+            # Rahul Kumar accessed the room at 8:05 PM; connecting
+            # the person keeps him in the evidence graph instead of
+            # leaving him isolated.
+            for person in present_people:
+
+                for time_value in present_times:
+                    add(
+                        person,
+                        "accessed_at",
+                        time_value,
+                        reason=sentence,
+                        confidence=0.85,
+                    )
+
+                for location in present_locations:
+                    add(
+                        person,
+                        "used_to_access",
+                        location,
+                        reason=sentence,
+                        confidence=0.85,
+                    )
+
+        # ----------------------------------------------------
+        # E2. EXPLICIT "ACCESSED" (person -> premise)
+        # ----------------------------------------------------
+        #
+        # "warehouse employee Arun Kumar accessed the warehouse
+        # at 10:30 PM" creates:
+        #
+        #     Arun Kumar --accessed--> Warehouse
+        #     Arun Kumar --accessed_at--> 10:30 PM
+        #
+        # The "accessed" verb is distinct from the card rule (E)
+        # because no card/badge device needs to be named.
+
+        if "accessed" in lower:
+
+            for person in present_people:
+                for location in present_locations:
+                    add(
+                        person,
+                        "accessed",
+                        location,
+                        reason=sentence,
+                        confidence=0.9,
+                    )
+
+                for time_value in present_times:
+                    add(
+                        person,
+                        "accessed_at",
+                        time_value,
+                        reason=sentence,
+                        confidence=0.85,
+                    )
+
+        # ----------------------------------------------------
+        # E3. DRIVER OF A VEHICLE
+        # ----------------------------------------------------
+        #
+        # "The vehicle belongs to FastMove Logistics, whose
+        # driver is Ravi." creates:
+        #
+        #     Ravi --driver_of--> Vehicle
+        #
+        # The driver is the person AFTER the "driver" phrase and
+        # the vehicle is the evidence BEFORE it.
+
+        driver_terms = (
+            "driver is", "driver was", "driver of", "driven by",
+            "driving the", "was driving",
+        )
+
+        driver_index = next(
+            (
+                index
+                for term in driver_terms
+                if (index := lower.find(term)) != -1
+            ),
+            None,
+        )
+
+        if driver_index is not None and present_people:
+
+            vehicle = None
+            for evidence_item in present_evidence:
+                position = lower.find(evidence_item.casefold())
+                if position != -1 and position < driver_index:
+                    vehicle = evidence_item
+                    break
+
+            for person in present_people:
+                position = _name_in_lower(person, lower)
+                if position != -1 and position >= driver_index:
+                    if vehicle:
+                        add(
+                            person,
+                            "driver_of",
+                            vehicle,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
+
+        # ----------------------------------------------------
+        # E4. MONEY TRANSFER
+        # ----------------------------------------------------
+        #
+        # "Bank records show Arun transferred ₹75,000 to Ravi"
+        # creates:
+        #
+        #     Arun Kumar --transferred--> ₹75,000
+        #     Arun Kumar --transferred_to--> Ravi
+        #
+        # Position is used so the sender and the receiver follow
+        # the sentence direction instead of inferred list order.
+
+        transfer_terms = (
+            "transferred", "transfer", "wired", "deposited",
+            "credited", "paid", "sent",
+        )
+
+        transfer_index = next(
+            (
+                index
+                for term in transfer_terms
+                if (index := lower.find(term)) != -1
+            ),
+            None,
+        )
+
+        if transfer_index is not None and present_money:
+
+            sender = None
+            for person in present_people:
+                position = _name_in_lower(person, lower)
+                if position != -1 and position < transfer_index:
+                    sender = person
+                    break
+
+            for amount in present_money:
+                add(
+                    sender or present_people[0],
+                    "transferred",
+                    amount,
+                    reason=sentence,
+                    confidence=0.9,
+                )
+
+            after = lower[transfer_index:]
+            relative_to = after.find(" to ")
+
+            if relative_to != -1:
+
+                to_position = transfer_index + relative_to
+
+                recipient = None
+                for person in present_people:
+                    position = _name_in_lower(person, lower)
+                    if position != -1 and position > to_position:
+                        recipient = person
+                        break
+
+                if sender and recipient and recipient != sender:
+                    add(
+                        sender,
+                        "transferred_to",
+                        recipient,
+                        reason=sentence,
+                        confidence=0.9,
+                    )
+
+        # ----------------------------------------------------
+        # E5. CONTACT / CALLS (person -> person)
+        # ----------------------------------------------------
+        #
+        # "Arun contacted Ravi 23 times" creates:
+        #
+        #     Arun Kumar --contacted--> Ravi
+        #
+        # This produces a deliberate person-to-person edge and does
+        # NOT emit any generic "reported" evidence relationship.
+
+        contact_terms = (
+            "contacted", "called", "messaged", "phoned",
+            "texted", "spoke to",
+        )
+
+        contact_index = next(
+            (
+                index
+                for term in contact_terms
+                if (index := lower.find(term)) != -1
+            ),
+            None,
+        )
+
+        if contact_index is not None and len(present_people) >= 2:
+
+            before = [
+                person
+                for person in present_people
+                if (
+                    position := _name_in_lower(person, lower)
+                ) != -1
+                and position < contact_index
+            ]
+
+            after = [
+                person
+                for person in present_people
+                if (
+                    position := _name_in_lower(person, lower)
+                ) != -1
+                and position > contact_index
+            ]
+
+            for subject in before:
+                for recipient in after:
+                    add(
+                        subject,
+                        "contacted",
+                        recipient,
+                        reason=sentence,
+                        confidence=0.9,
+                    )
+
         # ----------------------------------------------------
         # F. DIRECT LOCATION PRESENCE
         # ----------------------------------------------------
@@ -714,8 +1340,8 @@ def extract_relations(text, entities):
         # ----------------------------------------------------
 
         reported_phrases = (
-            "reported", "contacted", "informed", "filed",
-            "learned", "discovered",
+            "reported", "informed", "filed a report",
+            "officially reported",
         )
 
         if any(
@@ -754,9 +1380,21 @@ def extract_relations(text, entities):
                     phrase in lower
                     for phrase in claim_phrases
                 ),
+                ownership_phrases and any(
+                    phrase in lower
+                    for phrase in ownership_phrases
+                ),
                 seen_terms and any(
                     term in lower
                     for term in seen_terms
+                ),
+                near_terms and any(
+                    term in lower
+                    for term in near_terms
+                ),
+                witness_terms and any(
+                    term in lower
+                    for term in witness_terms
                 ),
                 cctv_terms and any(
                     term in lower
@@ -765,6 +1403,19 @@ def extract_relations(text, entities):
                 card_terms and any(
                     term in lower
                     for term in card_terms
+                ),
+                "accessed" in lower,
+                driver_terms and any(
+                    term in lower
+                    for term in driver_terms
+                ),
+                transfer_terms and any(
+                    term in lower
+                    for term in transfer_terms
+                ),
+                contact_terms and any(
+                    term in lower
+                    for term in contact_terms
                 ),
                 presence_phrases and any(
                     phrase in lower
@@ -819,9 +1470,17 @@ def extract_relations(text, entities):
     # When the report date only appears in the opening/closure
     # sentence, attach it once to the lead person so it has a
     # real connection to the rest of the graph.
+    #
+    # The label reflects what the sentence actually says:
+    #
+    #     "On 12 September, Arun Kumar accessed the warehouse"
+    #         -> accessed_on
+    #
+    #     "On 18 September 2026 ... the laptop ... Priya Sharma"
+    #         -> event_date
 
     if dates and people and not any(
-        relation["relation"] == "involved_in"
+        relation["relation"] in ("event_date", "accessed_on")
         and relation["target"] == dates[0]
         for relation in relations
     ):
@@ -833,9 +1492,26 @@ def extract_relations(text, entities):
                 lead_person.lower() in sentence.lower()
                 and dates[0].lower() in sentence.lower()
             ):
+
+                sentence_lower = sentence.lower()
+
+                date_label = (
+                    "accessed_on"
+                    if any(
+                        verb in sentence_lower
+                        for verb in (
+                            "accessed",
+                            "entered",
+                            "visited",
+                            "opened",
+                        )
+                    )
+                    else "event_date"
+                )
+
                 add(
                     lead_person,
-                    "involved_in",
+                    date_label,
                     dates[0],
                     reason=sentence.strip(),
                     confidence=0.75,

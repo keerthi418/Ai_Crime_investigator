@@ -207,6 +207,37 @@ def init_database():
         )
 
         # ====================================================
+        # SESSIONS TABLE
+        # ====================================================
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+
+                token TEXT PRIMARY KEY,
+
+                username TEXT NOT NULL,
+
+                created_at REAL NOT NULL,
+
+                last_activity REAL NOT NULL
+            )
+            """
+        )
+
+        # ----------------------------------------------------
+        # Sessions by username
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_sessions_username
+            ON sessions(username)
+            """
+        )
+
+        # ====================================================
         # PASSWORD RESET TOKEN TABLE
         # ====================================================
 

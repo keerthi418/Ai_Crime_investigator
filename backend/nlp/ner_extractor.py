@@ -76,7 +76,28 @@ GENERIC_LOCATIONS = {
     "godown": "Godown",
     "vault": "Vault",
     "cash counter": "Cash Counter",
+    "temporary storage location": "Temporary Storage Location",
 }
+
+
+# ============================================================
+# GENERIC LOCATION NAME LOOKUP
+# ============================================================
+#
+# Every premise recognised above ("Server Room", "Office", ...)
+# must never be extracted as a PERSON.  The two-word full-name
+# pattern below would otherwise happily match "Server Room" as
+# if it were a person's name.  This set is used both while
+# scanning full names and during the final PERSON cleanup.
+
+GENERIC_LOCATION_NAMES = {
+    value.casefold()
+    for value in GENERIC_LOCATIONS.values()
+}
+GENERIC_LOCATION_NAMES.update(
+    key.casefold()
+    for key in GENERIC_LOCATIONS
+)
 
 
 # ============================================================
@@ -89,7 +110,7 @@ ORGANIZATION_KEYWORDS = (
     "|Solutions|Systems|Services|Consulting|Labs|Laboratories"
     "|Associates|Partners|Holdings|Ventures|Bank|Hotel|Resort"
     "|Hospital|Clinic|College|University|Institute|School|Temple"
-    "|Trust|Foundation|NGO|Media|Publishing"
+    "|Trust|Foundation|NGO|Media|Publishing|Logistics"
 )
 
 
@@ -229,6 +250,7 @@ KNOWN_PERSON_NAMES = {
     "Anita",
     "Meena",
     "Suresh",
+    "Karthik",
 }
 
 
@@ -434,6 +456,10 @@ def extract_entities(text: str):
         # 15 September 2026
         rf"\b\d{{1,2}}\s+(?:{MONTHS})\s+\d{{4}}\b",
 
+        # 12 September (day + month, no year). The negative
+        # lookahead avoids double-matching "15 September 2026".
+        rf"\b\d{{1,2}}\s+(?:{MONTHS})(?!\s*\d{{4}})\b",
+
         # September 15, 2026
         rf"\b(?:{MONTHS})\s+\d{{1,2}},\s+\d{{4}}\b",
 
@@ -616,6 +642,11 @@ def extract_entities(text: str):
 
         # Ignore known locations.
         if is_location(name):
+            continue
+
+        # Ignore generic premises such as "Server Room" or
+        # "Office" that can look like a full supplied name.
+        if name.casefold() in GENERIC_LOCATION_NAMES:
             continue
 
         add_entity(
@@ -865,6 +896,9 @@ def extract_entities(text: str):
 
         # Access / ID card codes such as RC-1045
         r"\b[A-Z]{2,6}-\d{2,6}\b",
+
+        # Vehicle registration numbers such as TN38AB4521
+        r"\b[A-Z]{2}\d{2}[A-Z]{2}\d{2,4}\b",
     ]
 
     for pattern in specific_evidence_patterns:
@@ -1150,6 +1184,12 @@ def extract_entities(text: str):
                 continue
 
             if is_location(entity_text):
+                continue
+
+            if (
+                entity_text.casefold()
+                in GENERIC_LOCATION_NAMES
+            ):
                 continue
 
             if (

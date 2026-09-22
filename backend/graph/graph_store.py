@@ -200,12 +200,85 @@ def _astar_counted(graph, start, target):
     return [], visits, 0
 
 
-def _detail(algorithm, path, visited_nodes, execution_time_ms, **extra):
+def _path_edges(graph, path):
+    """
+    Convert a node path into relationship-labeled edges using the
+    ACTUAL NetworkX edge data.
+
+    Only edges that really exist in the graph are returned — never
+    invented labels.
+
+    Example:
+        path = ["Arun Kumar", "Ravi"]
+        -> [{"source": "Arun Kumar",
+             "relation": "transferred_to",
+             "target": "Ravi"}]
+    """
+    if graph is None or not path or len(path) < 2:
+        return []
+
+    edges = []
+
+    for index in range(len(path) - 1):
+        source = path[index]
+        target = path[index + 1]
+
+        try:
+            data = graph[source][target]
+        except (KeyError, TypeError):
+            continue
+
+        relation = (
+            data.get("relation")
+            or data.get("label")
+            or "related_to"
+        )
+
+        edges.append(
+            {
+                "source": str(source),
+                "relation": str(relation),
+                "target": str(target),
+            }
+        )
+
+    return edges
+
+
+def _detail(
+    algorithm,
+    path,
+    visited_nodes,
+    execution_time_ms,
+    start=None,
+    target=None,
+    graph=None,
+    **extra,
+):
+    # Path length is reported as the NUMBER OF EDGES (the
+    # standard graph-theory meaning), not the number of nodes.
+    # A single-node path ("a -> a") therefore has length 0.
+    path_length = (
+        max(0, len(path) - 1)
+        if path
+        else 0
+    )
+    edges = _path_edges(graph, path)
+
+    # STANDARD SEARCH RESULT FORMAT shared by BFS, DFS and A*.
+    # `length` (edges) and `visited` are the canonical names;
+    # `path_length` / `visited_nodes` are kept as aliases so the
+    # existing frontend metric suffix keeps working.
     result = {
         "algorithm": algorithm,
         "found": bool(path),
         "path": path,
-        "path_length": len(path),
+        "length": path_length,
+        "visited": visited_nodes,
+        "edges": edges,
+        "start": start,
+        "target": target,
+        "path_length": path_length,
         "visited_nodes": visited_nodes,
         "execution_time_ms": round(execution_time_ms, 4),
     }
@@ -217,14 +290,30 @@ def bfs_details(graph, start, target):
     started = time.perf_counter()
     path, visited_nodes = _bfs_counted(graph, start, target)
     elapsed = (time.perf_counter() - started) * 1000.0
-    return _detail("BFS", path, visited_nodes, elapsed)
+    return _detail(
+        "BFS",
+        path,
+        visited_nodes,
+        elapsed,
+        start=normalize_node(graph, start),
+        target=normalize_node(graph, target),
+        graph=graph,
+    )
 
 
 def dfs_details(graph, start, target):
     started = time.perf_counter()
     path, visited_nodes = _dfs_counted(graph, start, target)
     elapsed = (time.perf_counter() - started) * 1000.0
-    return _detail("DFS", path, visited_nodes, elapsed)
+    return _detail(
+        "DFS",
+        path,
+        visited_nodes,
+        elapsed,
+        start=normalize_node(graph, start),
+        target=normalize_node(graph, target),
+        graph=graph,
+    )
 
 
 def astar_details(graph, start, target):
@@ -236,6 +325,9 @@ def astar_details(graph, start, target):
         path,
         visited_nodes,
         elapsed,
+        start=normalize_node(graph, start),
+        target=normalize_node(graph, target),
+        graph=graph,
         cost=(len(path) - 1) if path else 0,
         heuristic_used="h(n)=0 (admissible)",
     )

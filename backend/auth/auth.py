@@ -18,9 +18,9 @@ This module handles:
 No external authentication framework is required.
 
 NOTE:
-The session and pending-2FA stores are in-memory and are intended
-for a local/demo deployment. They are cleared when the application
-restarts.
+Sessions are persisted in the SQLite database, so they survive
+application restarts. Pending 2FA challenges are stored in
+memory and cleared when the application restarts.
 """
 
 import base64
@@ -30,6 +30,8 @@ import secrets
 import struct
 import time
 from urllib.parse import quote
+
+from backend.database.database import get_connection
 
 
 # ============================================================
@@ -160,20 +162,18 @@ def verify_password(
 # ============================================================
 
 """
-Active session structure:
+Session structure (stored in the "sessions" table):
 
     {
-        "random-session-token": {
-            "username": "user1",
-            "created_at": 1234567890,
-            "last_activity": 1234567890
-        }
+        "token": "random-session-token",
+        "username": "user1",
+        "created_at": 1234567890,
+        "last_activity": 1234567890
     }
 
-Sessions are intentionally stored in memory for this project.
+Sessions are persisted in SQLite so that they survive
+application restarts.
 """
-
-ACTIVE_SESSIONS = {}
 
 # Session lifetime:
 # 8 hours
@@ -204,11 +204,36 @@ def create_session(username: str) -> str:
 
     now = time.time()
 
-    ACTIVE_SESSIONS[token] = {
-        "username": username,
-        "created_at": now,
-        "last_activity": now
-    }
+    connection = get_connection()
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO sessions
+            (
+                token,
+                username,
+                created_at,
+                last_activity
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                token,
+                username,
+                now,
+                now,
+            )
+        )
+
+        connection.commit()
+
+    finally:
+
+        connection.close()
 
     return token
 
@@ -234,32 +259,92 @@ def get_session_user(token):
 
     token = str(token).strip()
 
-    session = ACTIVE_SESSIONS.get(token)
-
-    if not session:
-        return None
-
     now = time.time()
 
-    created_at = session.get("created_at", now)
-    last_activity = session.get(
-        "last_activity",
-        created_at
-    )
+    connection = get_connection()
 
-    # Absolute session lifetime
-    if now - created_at > SESSION_TIMEOUT:
-        ACTIVE_SESSIONS.pop(token, None)
-        return None
+    try:
 
-    # Inactivity timeout
-    if now - last_activity > SESSION_TIMEOUT:
-        ACTIVE_SESSIONS.pop(token, None)
-        return None
+        cursor = connection.cursor()
 
-    session["last_activity"] = now
+        cursor.execute(
+            """
+            SELECT
+                username,
+                created_at,
+                last_activity
+            FROM sessions
+            WHERE token = ?
+            LIMIT 1
+            """,
+            (token,)
+        )
 
-    return session.get("username")
+        session = cursor.fetchone()
+
+        if not session:
+            return None
+
+        created_at = (
+            session["created_at"]
+            or now
+        )
+
+        last_activity = (
+            session["last_activity"]
+            or created_at
+        )
+
+        # Absolute session lifetime
+        if now - created_at > SESSION_TIMEOUT:
+
+            cursor.execute(
+                """
+                DELETE FROM sessions
+                WHERE token = ?
+                """,
+                (token,)
+            )
+
+            connection.commit()
+
+            return None
+
+        # Inactivity timeout
+        if now - last_activity > SESSION_TIMEOUT:
+
+            cursor.execute(
+                """
+                DELETE FROM sessions
+                WHERE token = ?
+                """,
+                (token,)
+            )
+
+            connection.commit()
+
+            return None
+
+        # Refresh the last activity timestamp.
+        cursor.execute(
+            """
+            UPDATE sessions
+            SET last_activity = ?
+            WHERE token = ?
+            """,
+            (
+                now,
+                token,
+            )
+        )
+
+        connection.commit()
+
+        return session["username"]
+
+    finally:
+
+        connection.close()
 
 
 # ============================================================
@@ -281,11 +366,27 @@ def remove_session(token) -> bool:
 
     token = str(token).strip()
 
-    if token in ACTIVE_SESSIONS:
-        del ACTIVE_SESSIONS[token]
-        return True
+    connection = get_connection()
 
-    return False
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM sessions
+            WHERE token = ?
+            """,
+            (token,)
+        )
+
+        connection.commit()
+
+        return cursor.rowcount > 0
+
+    finally:
+
+        connection.close()
 
 
 # ============================================================
@@ -309,16 +410,27 @@ def remove_user_sessions(username: str) -> int:
 
     username = str(username).strip()
 
-    tokens_to_remove = [
-        token
-        for token, session in ACTIVE_SESSIONS.items()
-        if session.get("username") == username
-    ]
+    connection = get_connection()
 
-    for token in tokens_to_remove:
-        ACTIVE_SESSIONS.pop(token, None)
+    try:
 
-    return len(tokens_to_remove)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM sessions
+            WHERE username = ?
+            """,
+            (username,)
+        )
+
+        connection.commit()
+
+        return cursor.rowcount
+
+    finally:
+
+        connection.close()
 
 
 # ============================================================
@@ -795,7 +907,7 @@ def totp_provisioning_uri(
 
 def cleanup_expired_security_data() -> dict:
     """
-    Remove expired in-memory sessions and 2FA challenges.
+    Remove expired persisted sessions and in-memory 2FA challenges.
 
     Returns:
 
@@ -814,37 +926,31 @@ def cleanup_expired_security_data() -> dict:
     # Expired sessions
     # --------------------------------------------------------
 
-    session_tokens = list(
-        ACTIVE_SESSIONS.keys()
-    )
+    connection = get_connection()
 
-    for token in session_tokens:
+    try:
 
-        session = ACTIVE_SESSIONS.get(token)
+        cursor = connection.cursor()
 
-        if not session:
-            continue
-
-        created_at = session.get(
-            "created_at",
-            now
-        )
-
-        last_activity = session.get(
-            "last_activity",
-            created_at
-        )
-
-        if (
-            now - created_at > SESSION_TIMEOUT
-            or
-            now - last_activity > SESSION_TIMEOUT
-        ):
-            ACTIVE_SESSIONS.pop(
-                token,
-                None
+        cursor.execute(
+            """
+            DELETE FROM sessions
+            WHERE created_at < ?
+               OR last_activity < ?
+            """,
+            (
+                now - SESSION_TIMEOUT,
+                now - SESSION_TIMEOUT,
             )
-            sessions_removed += 1
+        )
+
+        sessions_removed = cursor.rowcount
+
+        connection.commit()
+
+    finally:
+
+        connection.close()
 
     # --------------------------------------------------------
     # Expired 2FA challenges

@@ -3,6 +3,7 @@ const API = "http://127.0.0.1:8000/api";
 let currentUser = null;
 let lastInvestigation = null;
 let currentCaseReportFile = "";
+let currentCaseId = null;
 let graphInstance = null;
 let pending2FAChallenge = null;
 
@@ -1061,6 +1062,12 @@ function openInvestigation() {
         );
 
 
+    /* A fresh investigation starts a NEW case; it must not be
+       treated as a re-analysis of a previously loaded case. */
+
+    currentCaseId = null;
+
+
     showPage(
         "investigation",
         button
@@ -1237,9 +1244,46 @@ async function runInvestigation() {
 
     try {
 
+        /* When a case was loaded via "Investigate" on the case
+           dashboard, re-analyze THAT case through the dedicated
+           analyze endpoint.  Otherwise run a brand-new
+           investigation (which is the only path allowed to
+           create a new case row). */
+
+        const reanalyzing =
+            Boolean(currentCaseId);
+
+        const endpoint =
+            reanalyzing
+                ? `${API}/cases/${encodeURIComponent(currentCaseId)}/analyze`
+                : `${API}/investigate`;
+
+        const payload =
+            reanalyzing
+                ? {
+                    start_node:
+                        startNode,
+
+                    target_node:
+                        targetNode
+                }
+                : {
+                    text:
+                        text,
+
+                    case_name:
+                        caseName,
+
+                    start_node:
+                        startNode,
+
+                    target_node:
+                        targetNode
+                };
+
         const response =
             await fetch(
-                `${API}/investigate`,
+                endpoint,
                 {
                     method: "POST",
 
@@ -1252,21 +1296,10 @@ async function runInvestigation() {
                             `Bearer ${token}`
                     },
 
-                    body: JSON.stringify({
-
-                        text:
-                            text,
-
-                        case_name:
-                            caseName,
-
-                        start_node:
-                            startNode,
-
-                        target_node:
-                            targetNode
-
-                    })
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
                 }
             );
 
@@ -1298,6 +1331,22 @@ async function runInvestigation() {
         );
 
 
+        /* A brand-new investigation created a real case, so keep
+           its id for future re-runs (no duplicate creation). */
+
+        if (
+            !reanalyzing &&
+            data.case_id
+        ) {
+
+            currentCaseId =
+                Number(
+                    data.case_id
+                );
+
+        }
+
+
         displayInvestigation(
             data
         );
@@ -1310,7 +1359,9 @@ async function runInvestigation() {
 
         showMessage(
             "investigationMessage",
-            `Investigation completed successfully. Case ${data.case_id ? "#" + data.case_id : ""} is ONGOING.`,
+            reanalyzing
+                ? `Case #${data.case_id} re-analyzed successfully. No new case was created.`
+                : `Investigation completed successfully. Case ${data.case_id ? "#" + data.case_id : ""} is ONGOING.`,
             "success"
         );
 
@@ -1757,6 +1808,94 @@ function displayRelations(
    SEARCH ALGORITHMS
 ========================================================= */
 
+/* =========================================================
+   ALGORITHM LABEL PATH TEXT
+========================================================= */
+
+function algorithmLabelPathText(
+    disconnected,
+    path
+) {
+
+    if (
+        disconnected &&
+        (!Array.isArray(path) || path.length === 0)
+    ) {
+
+        return (
+            "Selected entities are disconnected. " +
+            "No path exists."
+        );
+
+    }
+
+    return formatPath(path);
+
+}
+
+
+/* =========================================================
+   RELATION-LABELED SEARCH PATH
+   -----------------------------------------------
+   Renders the REAL relationship labels that graph_store
+   attached to the found path edges, e.g.:
+
+     Arun Kumar → [transferred_to] → Ravi
+
+   Only edges that exist in search_results.*.edges are
+   shown — never invented labels.
+========================================================= */
+
+function searchPathDisplay(
+    results,
+    algorithm,
+    disconnected,
+    path
+) {
+
+    if (
+        disconnected &&
+        (!Array.isArray(path) || path.length === 0)
+    ) {
+
+        return (
+            "Selected entities are disconnected. " +
+            "No path exists."
+        );
+
+    }
+
+    const detail =
+        results &&
+        typeof results === "object"
+            ? results[algorithm]
+            : null;
+
+    if (
+        detail &&
+        typeof detail === "object" &&
+        Array.isArray(detail.edges) &&
+        detail.edges.length > 0 &&
+        Array.isArray(path) &&
+        path.length > 1
+    ) {
+
+        return detail.edges
+            .map(
+                (edge, index) =>
+                    (index === 0 ? String(edge.source) : "") +
+                    ` → [${edge.relation}] → ` +
+                    String(edge.target)
+            )
+            .join("");
+
+    }
+
+    return formatPath(path);
+
+}
+
+
 function displayAlgorithms(
     results
 ) {
@@ -1810,10 +1949,21 @@ function displayAlgorithms(
             "A*"
         );
 
+    // True when the backend confirmed the selected entities both
+    // exist in the graph but no path connects them.  The honest
+    // message replaces "No path found" in that case.
+    const disconnected =
+        results.disconnected === true &&
+        bfs.length === 0 &&
+        dfs.length === 0 &&
+        astar.length === 0;
 
     setText(
         "bfsResult",
-        formatPath(
+        searchPathDisplay(
+            results,
+            "BFS",
+            disconnected,
             bfs
         ) + metricSuffix(
             results,
@@ -1825,7 +1975,10 @@ function displayAlgorithms(
 
     setText(
         "dfsResult",
-        formatPath(
+        searchPathDisplay(
+            results,
+            "DFS",
+            disconnected,
             dfs
         ) + metricSuffix(
             results,
@@ -1837,7 +1990,10 @@ function displayAlgorithms(
 
     setText(
         "astarResult",
-        formatPath(
+        searchPathDisplay(
+            results,
+            "A*",
+            disconnected,
             astar
         ) + metricSuffix(
             results,
@@ -1852,6 +2008,16 @@ function displayAlgorithms(
             ? `${start} → ${target}`
             : "Automatic graph pair"
     );
+
+    if (disconnected) {
+
+        setText(
+            "searchResultDetails",
+            `Selected entities are disconnected. No path exists between ` +
+            `'${start}' and '${target}' in the knowledge graph.`
+        );
+
+    }
 
 }
 
@@ -2133,13 +2299,28 @@ function runSelectedAlgorithm(
                 ? "dfsResult"
                 : "astarResult";
 
+    const disconnected =
+        path.length === 0 &&
+        Boolean(startNode) &&
+        Boolean(targetNode);
 
     setText(
         elementId,
-        formatPath(
+        algorithmLabelPathText(
+            disconnected,
             path
         )
     );
+
+    if (disconnected) {
+
+        setText(
+            "searchResultDetails",
+            `Selected entities are disconnected. No path exists between ` +
+            `'${start}' and '${target}' in the knowledge graph.`
+        );
+
+    }
 
 }
 
@@ -2279,23 +2460,41 @@ function runGraphPathSearch() {
             targetId
         );
 
+    // Both nodes exist in the rendered graph (already verified
+    // above) but no algorithm can connect them: they belong to
+    // different connected components.
+    const disconnected =
+        bfsPath.length === 0 &&
+        dfsPath.length === 0 &&
+        astarPath.length === 0;
+
+    setText(
+        "searchResultDetails",
+        disconnected
+            ? "Selected entities are disconnected. No path exists."
+            : ""
+    );
+
     setText(
         "bfsResult",
-        formatPath(
+        algorithmLabelPathText(
+            disconnected,
             bfsPath
         )
     );
 
     setText(
         "dfsResult",
-        formatPath(
+        algorithmLabelPathText(
+            disconnected,
             dfsPath
         )
     );
 
     setText(
         "astarResult",
-        formatPath(
+        algorithmLabelPathText(
+            disconnected,
             astarPath
         )
     );
@@ -5431,18 +5630,10 @@ async function loadCaseDashboard() {
                 stats.contradictions || 0
             );
 
-            setText(
-                "resultConfidence",
-                formatConfidence(
-                    stats.confidence || 0
-                )
-            );
-
-
-            setText(
-                "resultContradictions",
-                stats.contradictions || 0
-            );
+            // NOTE: resultConfidence / resultContradictions are the
+            // CURRENT investigation's values and must never be
+            // overwritten here with the dashboard average — that was
+            // the source of the "UI 86% vs Bayesian 90%" mismatch.
 
         }
 
@@ -5691,6 +5882,12 @@ async function investigateExistingCase(id) {
         const caseTextInput = document.getElementById("caseText");
 
         currentCaseReportFile = caseData.report_file || "";
+
+        /* Remember WHICH case was loaded so a later "Run AI
+           Investigation" re-analyzes it instead of creating a
+           brand-new duplicate case. */
+
+        currentCaseId = Number(caseData.id) || null;
 
         if (caseNameInput) caseNameInput.value = caseData.case_name || "";
         if (caseTextInput) caseTextInput.value = caseData.case_text || "";

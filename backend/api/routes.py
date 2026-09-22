@@ -62,7 +62,9 @@ from fastapi.security import (
 from pydantic import BaseModel, EmailStr
 
 import pandas as pd
+import networkx as nx
 import io
+import os
 import secrets
 import hashlib
 
@@ -134,6 +136,7 @@ from backend.nlp.relation_extractor import (
 from backend.graph.case_graph_builder import (
     build_case_graph,
     graph_to_json,
+    graph_has_path,
     get_graph_summary,
 )
 
@@ -142,6 +145,7 @@ from backend.graph.graph_store import (
     dfs,
     astar,
     run_search_details,
+    normalize_node,
 )
 
 
@@ -240,6 +244,11 @@ class InvestigationRequest(BaseModel):
     start_node: str = ""
     target_node: str = ""
     case_name: str = ""
+
+
+class AnalyzeCaseRequest(BaseModel):
+    start_node: str = ""
+    target_node: str = ""
 
 
 # ============================================================
@@ -1414,6 +1423,24 @@ def reset_password(
 # ============================================================
 
 
+# ============================================================
+# PIPELINE DEBUG TRACE
+# ============================================================
+#
+# Set AI_DEBUG=0 to disable.  Enabled by default so every
+# /investigate request prints the full extraction -> graph ->
+# search audit trail (entities, relations, graph nodes, graph
+# edges, connected components, and the exact start/target pair)
+# to the uvicorn console.
+
+PIPELINE_DEBUG = os.environ.get("AI_DEBUG", "1") not in {"0", "false", "False"}
+
+
+def _trace(*args):
+    if PIPELINE_DEBUG:
+        print("[PIPELINE]", *args)
+
+
 def run_investigation_pipeline(
     case_text: str,
     start: str = "",
@@ -1512,6 +1539,27 @@ def run_investigation_pipeline(
     start = str(start).strip() if start else ""
     target = str(target).strip() if target else ""
 
+    # Use the user-provided nodes EXACTLY.  A node that is not
+    # present in the extracted knowledge graph is an explicit
+    # error, never a silent empty result.
+    if start and normalize_node(graph, start) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Start node '{start}' is not present in the "
+                "extracted knowledge graph."
+            ),
+        )
+
+    if target and normalize_node(graph, target) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Target node '{target}' is not present in the "
+                "extracted knowledge graph."
+            ),
+        )
+
     # The algorithms are a core part of the application, so they
     # must not silently remain "Not run yet" just because the user
     # did not manually select two nodes.  If the investigator did
@@ -1531,10 +1579,8 @@ def run_investigation_pipeline(
         if value and kind not in {"DATE", "TIME", "MONEY"} and value in graph.nodes:
             preferred_nodes.append(value)
 
-    # If the investigator did not specify a pair, prefer an actual
-    # graph edge.  That guarantees the three search algorithms have
-    # a real path to evaluate in the demo instead of returning an
-    # empty result merely because two disconnected nodes were chosen.
+    # Deterministic automatic fallback is used ONLY when neither
+    # the start nor the target was provided by the investigator.
     if not start and not target and graph.number_of_edges() > 0:
         preferred_set = {value.casefold() for value in preferred_nodes}
         chosen_edge = None
@@ -1554,6 +1600,22 @@ def run_investigation_pipeline(
         start = str(edge_source)
         target = str(edge_target)
 
+    # If only ONE side was provided, keep it exactly as given and
+    # fill only the missing side with a deterministic candidate.
+    elif not start:
+        candidates = preferred_nodes or [str(node) for node in graph_nodes]
+        for node in candidates:
+            if str(node).casefold() != target.casefold():
+                start = str(node)
+                break
+
+    elif not target:
+        candidates = preferred_nodes or [str(node) for node in graph_nodes]
+        for node in candidates:
+            if str(node).casefold() != start.casefold():
+                target = str(node)
+                break
+
     if not start:
         start = preferred_nodes[0] if preferred_nodes else (str(graph_nodes[0]) if graph_nodes else "")
 
@@ -1563,6 +1625,33 @@ def run_investigation_pipeline(
             if str(node).casefold() != start.casefold():
                 target = str(node)
                 break
+
+    # Whether a path exists at all is decided ONCE here, before
+    # running the algorithms, so the API can tell the UI honestly
+    # that the selected entities are disconnected rather than
+    # pretending the search "failed".
+    path_exists = False
+
+    if start and target:
+        try:
+            path_exists = graph_has_path(
+                graph,
+                start,
+                target,
+            )
+        except Exception:
+            path_exists = False
+
+    if PIPELINE_DEBUG:
+
+        _trace("=" * 18 + " SEARCH DEBUG " + "=" * 18)
+        _trace("  start=%r  canonical=%r" % (start, normalize_node(graph, start)))
+        _trace("  target=%r  canonical=%r" % (target, normalize_node(graph, target)))
+        _trace("  start exists: %s" % (normalize_node(graph, start) is not None))
+        _trace("  target exists: %s" % (normalize_node(graph, target) is not None))
+        _trace("  graph edges: %d" % graph.number_of_edges())
+        _trace("  graph components: %d" % nx.number_connected_components(graph))
+        _trace("  path exists before search: %s" % path_exists)
 
     # ========================================================
     # SEARCH
@@ -1594,9 +1683,17 @@ def run_investigation_pipeline(
                 target,
             )
 
-        except Exception:
+        except Exception as e:
 
-            search_details = {}
+            # Do not swallow the failure silently: the caller
+            # must be able to distinguish a completed search from
+            # a search that could not be executed at all.
+            print("SEARCH ERROR:", e)
+            search_details = {
+                "error": f"Search execution failed: {str(e)}"
+            }
+
+    search_error = search_details.get("error")
 
     bfs_path = (
         (search_details.get("BFS") or {}).get("path")
@@ -1632,12 +1729,22 @@ def run_investigation_pipeline(
         ),
         "start": search_details.get("start") or start,
         "target": search_details.get("target") or target,
+        "error": search_error,
+        "disconnected": (
+            bool(start and target)
+            and path_exists is False
+        ),
     }
 
     no_path_hint = (
-        f"No path exists between '{start}' and '{target}' "
-        "in the knowledge graph. The extracted graph may be "
-        "disconnected or one of the nodes is missing."
+        f"Selected entities are disconnected. No path exists "
+        f"between '{start}' and '{target}' in the knowledge graph."
+        if path_exists is False
+        else (
+            f"No path exists between '{start}' and '{target}' "
+            "in the knowledge graph. The extracted graph may be "
+            "disconnected or one of the nodes is missing."
+        )
     )
 
     algorithm_status = {}
@@ -1649,20 +1756,27 @@ def run_investigation_pipeline(
             or {}
         )
 
-        algorithm_status[algorithm] = (
-            "completed"
-            if detail.get("found")
-            else "no_path"
-        )
+        if search_error:
+            algorithm_status[algorithm] = "error"
+        else:
+            algorithm_status[algorithm] = (
+                "completed"
+                if detail.get("found")
+                else "no_path"
+            )
 
     search_hint = (
-        "All three algorithms completed."
-        if (
-            algorithm_status["BFS"] == "completed"
-            and algorithm_status["DFS"] == "completed"
-            and algorithm_status["A*"] == "completed"
+        f"Search could not be completed: {search_error}"
+        if search_error
+        else (
+            "All three algorithms completed."
+            if (
+                algorithm_status["BFS"] == "completed"
+                and algorithm_status["DFS"] == "completed"
+                and algorithm_status["A*"] == "completed"
+            )
+            else no_path_hint
         )
-        else no_path_hint
     )
 
     # ========================================================
@@ -1714,6 +1828,7 @@ def run_investigation_pipeline(
             contradictions=contradictions,
             connected=graph_summary.get("connected"),
             components=graph_summary.get("components"),
+            path_exists=path_exists,
         )
 
     except Exception:
@@ -1732,6 +1847,9 @@ def run_investigation_pipeline(
             contradictions=contradictions,
             connected=graph_summary.get("connected"),
             components=graph_summary.get("components"),
+            path_exists=path_exists,
+            start=start,
+            target=target,
         )
 
     except Exception as e:
@@ -1749,6 +1867,7 @@ def run_investigation_pipeline(
             contradictions=contradictions,
             connected=graph_summary.get("connected"),
             components=graph_summary.get("components"),
+            path_exists=path_exists,
         )
 
     except Exception:
@@ -1776,9 +1895,76 @@ def run_investigation_pipeline(
         raise HTTPException(
             status_code=500,
             detail=(
-                f"Graph serialization failed: {str(e)}"
+                f"Graph construction failed: {str(e)}"
             ),
         )
+
+    if PIPELINE_DEBUG:
+
+        _trace("=" * 18 + " ENTITY DEBUG " + "=" * 18)
+
+        for entity in entities:
+            _trace(
+                "  type=%s text=%r id=%r"
+                % (
+                    str(entity.get("type", "")).upper(),
+                    str(entity.get("text", "")),
+                    str(entity.get("id", "")),
+                )
+            )
+
+        _trace("  TOTAL ENTITIES: %d" % len(entities))
+
+        _trace("=" * 18 + " RELATION DEBUG " + "=" * 18)
+
+        for rel in relations:
+            _trace(
+                "  %r --%s--> %r (conf=%s)"
+                % (
+                    str(rel.get("source", "")),
+                    str(rel.get("relation", "")),
+                    str(rel.get("target", "")),
+                    str(rel.get("confidence", "")),
+                )
+            )
+
+        _trace("  TOTAL RELATIONS: %d" % len(relations))
+
+        _trace("=" * 18 + " GRAPH NODES " + "=" * 18)
+
+        for node, node_data in graph.nodes(data=True):
+            _trace(
+                "  node=%r type=%s"
+                % (
+                    str(node),
+                    str(node_data.get("type", "")),
+                )
+            )
+
+        _trace("  TOTAL NODES: %d" % graph.number_of_nodes())
+
+        _trace("=" * 18 + " GRAPH EDGES " + "=" * 18)
+
+        for edge_source, edge_target, edge_data in graph.edges(data=True):
+            _trace(
+                "  %r --%s--> %r"
+                % (
+                    str(edge_source),
+                    str(edge_data.get("relation", "")),
+                    str(edge_target),
+                )
+            )
+
+        _trace("  TOTAL EDGES: %d" % graph.number_of_edges())
+
+        _trace("=" * 18 + " CONNECTED COMPONENTS " + "=" * 18)
+
+        for index, component in enumerate(
+            nx.connected_components(graph)
+        ):
+            _trace(
+                "  Component %d: %r" % (index, sorted(component))
+            )
 
     return {
         "entities": entities,
@@ -2498,6 +2684,222 @@ def get_case(case_id:int, credentials: HTTPAuthorizationCredentials | None = Dep
         if not row: raise HTTPException(404,"Case not found.")
         return {"status":"success","case":dict(row)}
     finally: conn.close()
+
+
+# ============================================================
+# ANALYZE EXISTING CASE (NO NEW CASE IS CREATED)
+# ============================================================
+#
+# Re-running the AI pipeline on an existing case MUST NOT
+# insert a second row into investigation_cases.  Only the
+# explicit "new investigation" endpoint (POST /investigate is
+# allowed to create a case.  This endpoint therefore runs the
+# exact same NLP -> graph -> search pipeline against the stored
+# case text and returns the results bound to the SAME case_id.
+
+
+@router.post("/cases/{case_id}/analyze")
+def analyze_case(
+    case_id: int,
+    request: AnalyzeCaseRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(
+        security
+    ),
+):
+    """
+    Re-analyze an existing case without creating a new case.
+    """
+
+    user, _ = get_authenticated_user(
+        credentials
+    )
+
+    # --------------------------------------------------------
+    # Load the stored case text (authoritative).
+    # --------------------------------------------------------
+
+    conn = get_connection()
+
+    try:
+
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT *
+            FROM investigation_cases
+            WHERE id = ? AND username = ?
+            """,
+            (case_id, user["username"]),
+        )
+
+        row = cur.fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="Case not found.",
+            )
+
+        case = dict(row)
+
+    finally:
+
+        conn.close()
+
+    case_text = str(
+        case.get("case_text") or ""
+    ).strip()
+
+    if not case_text:
+        raise HTTPException(
+            status_code=400,
+            detail="The stored case description is empty.",
+        )
+
+    # --------------------------------------------------------
+    # Run the full pipeline with the ORIGINAL case_id attached.
+    # --------------------------------------------------------
+
+    result = run_investigation_pipeline(
+        case_text,
+        request.start_node,
+        request.target_node,
+    )
+
+    # --------------------------------------------------------
+    # REGENERATE THE PDF from the SAME search_results the UI
+    # displays.  Re-analysis must never leave the stored report
+    # pointing at a stale file from the original investigation.
+    # --------------------------------------------------------
+
+    report_file = case.get("report_file")
+
+    try:
+
+        report_file = generate_report(
+            case_text,
+            result["entities"],
+            result["relations"],
+            result["search_results"],
+            result["confidence"],
+            result["contradictions"],
+            graph_data=result["graph_data"],
+            start=result["start"],
+            target=result["target"],
+            bfs_path=result["bfs_path"],
+            dfs_path=result["dfs_path"],
+            astar_path=result["astar_path"],
+            explanation=result["explanation"],
+            username=user["username"],
+        )
+
+        conn = get_connection()
+
+        try:
+
+            cur = conn.cursor()
+
+            cur.execute(
+                """
+                UPDATE investigation_cases
+                SET report_file = ?,
+                    entities_count = ?,
+                    relations_count = ?,
+                    confidence = ?,
+                    contradictions_count = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND username = ?
+                """,
+                (
+                    report_file,
+                    len(result["entities"]),
+                    len(result["relations"]),
+                    float(result["confidence"] or 0),
+                    len(result["contradictions"]),
+                    case_id,
+                    user["username"],
+                ),
+            )
+
+            conn.commit()
+
+        finally:
+
+            conn.close()
+
+    except Exception as e:
+
+        report_file = case.get("report_file")
+
+        log_activity(
+            user["username"],
+            "CASE_ANALYZED",
+            (
+                f"Case {case_id} re-analyzed; PDF regeneration "
+                f"failed: {str(e)}"
+            ),
+        )
+
+    log_activity(
+        user["username"],
+        "CASE_ANALYZED",
+        f"Case {case_id} re-analyzed (no new case created).",
+    )
+
+    return {
+        "status": "success",
+
+        "case_id": case_id,
+
+        "case_name": case.get("case_name"),
+
+        "reanalyzed": True,
+
+        "entities": result["entities"],
+
+        "relations": result["relations"],
+
+        "graph": result["graph_data"],
+
+        "search_results": result["search_results"],
+
+        "algorithm_pair": result["algorithm_pair"],
+
+        "algorithm_status": result["algorithm_status"],
+
+        "search_hint": result["search_hint"],
+
+        "search_error": result["search_results"].get("error"),
+
+        "start": result["start"],
+
+        "target": result["target"],
+
+        "bfs_path": result["bfs_path"],
+
+        "dfs_path": result["dfs_path"],
+
+        "astar_path": result["astar_path"],
+
+        "bayesian_confidence": result["confidence"],
+
+        "confidence_details": result["confidence_details"],
+
+        "contradictions": result["contradictions"],
+
+        "explanation": result["explanation"],
+
+        "report": {
+            "file": report_file,
+            "message": (
+                "Case re-analyzed; the PDF report was "
+                "regenerated from the current search results."
+                if report_file
+                else "PDF report could not be regenerated."
+            ),
+        },
+    }
 
 
 @router.patch("/cases/{case_id}/status")
