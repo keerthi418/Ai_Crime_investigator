@@ -1736,6 +1736,22 @@ def run_investigation_pipeline(
         ),
     }
 
+    if PIPELINE_DEBUG:
+
+        _trace("=" * 18 + " SEARCH DEBUG " + "=" * 18)
+
+        for algorithm in ("BFS", "DFS", "A*"):
+
+            detail = search_results.get(algorithm) or {}
+
+            _trace("Algorithm: %s" % algorithm)
+            _trace("  Start: %s" % search_results.get("start"))
+            _trace("  Target: %s" % search_results.get("target"))
+            _trace("  Reached target: %s" % detail.get("found"))
+            _trace("  Path length: %s" % detail.get("length"))
+            _trace("  Returned path: %r" % (detail.get("path") or []))
+            _trace("  Returned edges: %r" % (detail.get("edges") or []))
+
     no_path_hint = (
         f"Selected entities are disconnected. No path exists "
         f"between '{start}' and '{target}' in the knowledge graph."

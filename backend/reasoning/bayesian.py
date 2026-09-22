@@ -273,11 +273,37 @@ def explain_confidence(
         )
 
     if contradictions:
+
         explanation.append(
             f"{len(contradictions)} contradiction(s) "
-            "reduced the confidence score."
+            "reduced the confidence score:"
         )
+
+        for contradiction in contradictions:
+
+            if isinstance(contradiction, dict):
+
+                message = (
+                    contradiction.get("message")
+                    or contradiction.get("claim")
+                    or ""
+                )
+
+                severity = contradiction.get("severity")
+
+                if severity:
+                    explanation.append(
+                        f"{str(severity).upper()} - {message}"
+                    )
+                elif message:
+                    explanation.append(str(message))
+
+            else:
+
+                explanation.append(f"- {contradiction}")
+
     else:
+
         explanation.append(
             "No major contradictions were detected."
         )

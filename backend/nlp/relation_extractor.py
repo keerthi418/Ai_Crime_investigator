@@ -22,6 +22,60 @@ import re
 
 
 # ============================================================
+# CLAIM-DENIAL PATTERNS
+# ============================================================
+
+_NEGATIVE_PRESENCE_RE = re.compile(
+    r"\b(?:"
+    r"was\s+not\s+present\s+at"
+    r"|were\s+not\s+present\s+at"
+    r"|was\s+never\s+at"
+    r"|wasn'?t\s+(?:at|present\s+at)"
+    r"|did\s+not\s+(?:visit|enter|go\s+to)"
+    r"|didn'?t\s+(?:visit|enter|go\s+to)"
+    r"|not\s+present\s+at"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_NEGATIVE_CONTACT_RE = re.compile(
+    r"\b(?:"
+    r"did\s+not\s+(?:contact|call|message|text|phone|speak\s+to)"
+    r"|didn'?t\s+(?:contact|call|message|text|phone|speak\s+to)"
+    r"|never\s+(?:contacted|called|messaged|texted)"
+    r"|denied\s+(?:contacting|calling)"
+    r"|did\s+not\s+make\s+any\s+(?:calls|contact)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# A time-interval such as "between 10:00 PM and 11:30 PM" or
+# "entering at 10:15 PM and leaving at 11:20 PM".  The second
+# time may be separated from "and" by a few connecting words.
+_INTERVAL_RE = re.compile(
+    r"\b(\d{1,2}:\d{2}\s?(?:a\.?m\.?|p\.?m\.?)?)\s+and\s+"
+    r"(?:\w+\s+){0,4}?(\d{1,2}:\d{2}\s?(?:a\.?m\.?|p\.?m\.?)?)\b",
+    re.IGNORECASE,
+)
+
+
+def _extract_interval(lower):
+    """
+    Extract (start, end) time tokens from a sentence interval,
+    or (None, None) when no interval is expressed.
+
+    The tokens keep the original spacing so they stay consistent
+    with the extracted TIME entities ("10:15 PM", not "10:15PM").
+    """
+    match = _INTERVAL_RE.search(lower)
+
+    if not match:
+        return None, None
+
+    return match.group(1).strip(" "), match.group(2).strip(" ")
+
+
+# ============================================================
 # BASIC HELPERS
 # ============================================================
 
@@ -469,6 +523,26 @@ def extract_relations(text, entities):
             )
         )
 
+    def with_meta(relation_name, source_name, target_name, **metadata):
+        """
+        Attach structured metadata (start_time, end_time, call_count,
+        claim_type, ...) to a specific relation that was just added.
+
+        The contradiction engine reads this metadata to compare a
+        claim against independent evidence instead of comparing
+        bare relationship labels.
+        """
+        for relation in relations:
+            if (
+                relation.get("relation") == relation_name
+                and relation.get("source") == source_name
+                and relation.get("target") == target_name
+            ):
+                relation["metadata"] = dict(metadata)
+                return relation
+
+        return None
+
     # --------------------------------------------------------
     # SENTENCE-LEVEL RULES
     # --------------------------------------------------------
@@ -528,6 +602,24 @@ def extract_relations(text, entities):
         present_times = present_of(times)
         present_dates = present_of(dates)
         present_money = present_of(money)
+
+        # A statement such as "stated that he was not present at
+        # the warehouse between 10:00 PM and 11:30 PM" is a CLAIM
+        # of absence.  It must be represented semantically as
+        #   Arun Kumar --claimed_not_present_at--> Warehouse
+        # and must never become a positive "located_at" / "claimed"
+        # edge.  Likewise, "stated that he did not contact Ravi" is
+        # a negative contact claim.
+        denies_presence = bool(
+            present_people
+            and present_locations
+            and _NEGATIVE_PRESENCE_RE.search(lower)
+        )
+
+        denies_contact = bool(
+            len(present_people) >= 2
+            and _NEGATIVE_CONTACT_RE.search(lower)
+        )
 
         # ----------------------------------------------------
         # A. THEFT / MISSING
@@ -733,28 +825,123 @@ def extract_relations(text, entities):
             for phrase in claim_phrases
         ):
 
-            for person in present_people:
+            # ----------------------------------------------------
+            # B1. NEGATIVE PRESENCE CLAIM
+            # ----------------------------------------------------
+            #
+            # "Arun Kumar stated that he was not present at the
+            #  warehouse between 10:00 PM and 11:30 PM"
+            #
+            #     Arun Kumar --claimed_not_present_at--> Warehouse
+            #         { claim_type: "negative_presence",
+            #           start_time: "10:00 PM",
+            #           end_time: "11:30 PM" }
+            #
+            # This sentence must NOT produce:
+            #     Arun Kumar --claimed--> 10:00 PM
+            #     Arun Kumar --located_at--> Warehouse
+            if denies_presence:
 
-                for time_value in present_times:
-                    add(
-                        person,
-                        "claimed",
-                        time_value,
-                        reason=sentence,
-                        confidence=0.9,
-                    )
+                start_time, end_time = _extract_interval(lower)
 
-                # A claimed departure/arrival is attached to the
-                # location to keep the graph connected.
-                if "left" in lower or "was at" in lower:
+                for person in present_people:
                     for location in present_locations:
                         add(
                             person,
-                            "claimed",
+                            "claimed_not_present_at",
                             location,
                             reason=sentence,
-                            confidence=0.8,
+                            confidence=0.9,
                         )
+                        with_meta(
+                            "claimed_not_present_at",
+                            person,
+                            location,
+                            claim_type="negative_presence",
+                            start_time=start_time,
+                            end_time=end_time,
+                        )
+
+            # ----------------------------------------------------
+            # B2. NEGATIVE CONTACT CLAIM
+            # ----------------------------------------------------
+            #
+            # "Arun Kumar stated that he did not contact Ravi"
+            #
+            #     Arun Kumar --claimed_no_contact--> Ravi
+            elif denies_contact:
+
+                # The declarer ("Arun Kumar") is the person who
+                # appears BEFORE the negation phrase; the person
+                # who was allegedly not contacted appears AFTER it.
+                # Only the declarer claims; the direction never has
+                # to be repeated in reverse.
+                negative_match = _NEGATIVE_CONTACT_RE.search(
+                    lower
+                )
+
+                denial_position = (
+                    negative_match.start()
+                    if negative_match
+                    else -1
+                )
+
+                declarer = None
+                other = None
+
+                for person in present_people:
+                    position = _name_in_lower(
+                        person,
+                        lower,
+                    )
+                    if position != -1:
+                        if position < denial_position:
+                            declarer = person
+                        else:
+                            other = person
+
+                if declarer and other and other != declarer:
+                    add(
+                        declarer,
+                        "claimed_no_contact",
+                        other,
+                        reason=sentence,
+                        confidence=0.9,
+                    )
+                    with_meta(
+                        "claimed_no_contact",
+                        declarer,
+                        other,
+                        claim_type="negative_contact",
+                    )
+
+            # ----------------------------------------------------
+            # B3. POSITIVE CLAIM (existing behaviour)
+            # ----------------------------------------------------
+            else:
+
+                for person in present_people:
+
+                    for time_value in present_times:
+                        add(
+                            person,
+                            "claimed",
+                            time_value,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
+
+                    # A claimed departure/arrival is attached to the
+                    # location to keep the graph connected.
+                    if "left" in lower or "was at" in lower:
+                        for location in present_locations:
+                            add(
+                                person,
+                                "claimed",
+                                location,
+                                reason=sentence,
+                                confidence=0.8,
+                            )
 
         # ----------------------------------------------------
         # C. OBSERVED / SEEN
@@ -969,6 +1156,8 @@ def extract_relations(text, entities):
 
             if camera:
 
+                presence_interval = _extract_interval(lower)
+
                 for person in present_people:
                     add(
                         camera,
@@ -977,6 +1166,40 @@ def extract_relations(text, entities):
                         reason=sentence,
                         confidence=0.9,
                     )
+
+                    # CCTV evidence of PRESENCE over an interval.
+                    # "CCTV footage shows Arun Kumar entering at
+                    #  10:15 PM and leaving at 11:20 PM" becomes:
+                    #
+                    #   CCTV Footage --recorded_presence--> Arun Kumar
+                    #       { start_time: "10:15 PM",
+                    #         end_time: "11:20 PM",
+                    #         location: "Warehouse" }
+                    #
+                    # The contradiction engine compares this
+                    # independent evidence against a claim of
+                    # absence.
+                    if presence_interval[0]:
+                        add(
+                            camera,
+                            "recorded_presence",
+                            person,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
+                        with_meta(
+                            "recorded_presence",
+                            camera,
+                            person,
+                            start_time=presence_interval[0],
+                            end_time=presence_interval[1],
+                            location=(
+                                present_locations[0]
+                                if present_locations
+                                else None
+                            ),
+                            device=camera,
+                        )
 
                 for time_value in present_times:
                     add(
@@ -1267,6 +1490,18 @@ def extract_relations(text, entities):
                 and position > contact_index
             ]
 
+            # A records device named in the sentence (Phone Records,
+            # Message Records, Communication Records, ...).
+            recordings = [
+                item
+                for item in present_evidence
+                if re.search(
+                    r"record|phone|call|message|communication",
+                    item,
+                    re.IGNORECASE,
+                )
+            ]
+
             for subject in before:
                 for recipient in after:
                     add(
@@ -1276,6 +1511,47 @@ def extract_relations(text, entities):
                         reason=sentence,
                         confidence=0.9,
                     )
+
+                    # "Phone records show that Arun Kumar called
+                    #  Ravi 8 times between 10:30 PM and 11:10 PM"
+                    # becomes:
+                    #
+                    #   Phone Records --recorded_calls--> Ravi
+                    #       { call_count: 8,
+                    #         start_time: "10:30 PM",
+                    #         end_time: "11:10 PM",
+                    #         caller: "Arun Kumar" }
+                    #
+                    call_counter = re.search(
+                        r"\b(\d{1,3})\s+times?\b",
+                        lower,
+                    )
+
+                    if recordings and call_counter:
+
+                        device = recordings[0]
+                        start_time, end_time = (
+                            _extract_interval(lower)
+                        )
+
+                        add(
+                            device,
+                            "recorded_calls",
+                            recipient,
+                            reason=sentence,
+                            confidence=0.9,
+                        )
+                        with_meta(
+                            "recorded_calls",
+                            device,
+                            recipient,
+                            call_count=int(
+                                call_counter.group(1)
+                            ),
+                            start_time=start_time,
+                            end_time=end_time,
+                            caller=subject,
+                        )
 
         # ----------------------------------------------------
         # F. DIRECT LOCATION PRESENCE
@@ -1293,14 +1569,18 @@ def extract_relations(text, entities):
 
             for location in present_locations:
 
-                for person in present_people:
-                    add(
-                        person,
-                        "located_at",
-                        location,
-                        reason=sentence,
-                        confidence=0.8,
-                    )
+                # A denial statement ("was not present at ...")
+                # must never create a positive person presence
+                # edge.  Evidence devices may still be linked.
+                if not denies_presence:
+                    for person in present_people:
+                        add(
+                            person,
+                            "located_at",
+                            location,
+                            reason=sentence,
+                            confidence=0.8,
+                        )
 
                 for evidence_item in present_evidence:
                     add(

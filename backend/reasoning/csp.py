@@ -2,17 +2,44 @@
 Constraint Satisfaction / Contradiction Detection
 for AI Crime Investigator.
 
-This module detects simple logical inconsistencies
-in extracted case evidence and relationships.
+This module detects logical inconsistencies in extracted
+case evidence by comparing a person's CLAIMS against
+INDEPENDENT EVIDENCE, never by comparing relationship
+labels alone.
 
-Checks performed:
-    1. Negative location statements.
-    2. Negative ownership statements.
-    3. Duplicate relationships.
-    4. Opposite relationships between the same entities.
-    5. Timeline contradictions (a person claims to have
-       left at time T but evidence shows them present
-       after time T).
+Supported contradiction classes:
+
+    1. Presence contradiction
+       A person claims they were NOT present at a location
+       between two times, but independent CCTV footage records
+       that exact person AT that location during an overlapping
+       interval.
+            claimed_not_present_at  <->  recorded_presence
+
+    2. Communication contradiction
+       A person claims they did NOT contact another person,
+       but independent phone records show the same caller
+       contacting that exact recipient.
+            claimed_no_contact  <->  recorded_calls
+
+    3. Duplicate relationships
+    4. Opposite relationships between the same entities
+    5. Timeline contradictions (claim of a time vs. presence
+       evidence placed after that claimed time)
+
+Every returned contradiction is a STRUCTURED object:
+
+    {
+        "type": "presence_contradiction",
+        "subject": "Arun Kumar",
+        "claim": "...",
+        "evidence": "...",
+        "severity": "HIGH",
+        "message": "..."
+    }
+
+The SAME list is consumed by the dashboard, investigation page,
+PDF report, AI explanation and audit logs.
 """
 
 import re
@@ -32,6 +59,17 @@ def _safe_string(value):
     return str(value).strip().lower()
 
 
+def _get_text(value):
+    """
+    Convert a value safely into its original-case string.
+    Used for DISPLAY while _safe_string() is used for matching.
+    """
+    if value is None:
+        return ""
+
+    return str(value).strip()
+
+
 def _get_relation_value(relation, key):
     """
     Safely get a relation field.
@@ -47,8 +85,63 @@ def _get_relation_value(relation, key):
     )
 
 
+def _relation_meta(relation, key):
+    """
+    Read a structured metadata field from a relation.
+
+    The relation extractor stores interval / quantity details
+    (start_time, end_time, call_count, caller, claim_type, ...)
+    under relation["metadata"] so the contradiction engine can
+    compare CLAIMS against EVIDENCE with real values instead of
+    bare relationship labels.
+    """
+    if not isinstance(relation, dict):
+        return None
+
+    metadata = relation.get("metadata")
+
+    if not isinstance(metadata, dict):
+        return None
+
+    return metadata.get(key)
+
+
+def _make_contradiction(
+    contra_type,
+    subject,
+    claim,
+    evidence,
+    severity="MEDIUM",
+    message=None,
+):
+    """
+    Build one structured contradiction object.
+
+    Consumed identically by all five outputs:
+        dashboard, investigation page, PDF, explanation, audit.
+    """
+    if not message:
+        message = f"{claim} However, {evidence}"
+
+    return {
+        "type": contra_type,
+        "subject": subject or "",
+        "claim": claim,
+        "evidence": evidence,
+        "severity": severity,
+        "message": message,
+    }
+
+
+def _format_time(value):
+    """
+    Normalise a time token for display ("10:30 pm" -> "10:30 PM").
+    """
+    return str(value or "").strip().upper()
+
+
 # ============================================================
-# TIME PARSING (for timeline contradictions)
+# TIME PARSING (for interval overlap checks)
 # ============================================================
 
 _TIME_PATTERNS = [
@@ -151,7 +244,6 @@ _CLAIM_RELATION_TYPES = {
     "claimed",
     "left_at",
     "departed_at",
-    "stated_left_at",
 }
 
 
@@ -166,87 +258,283 @@ def detect_contradictions(
     """
     Detect contradictions in the investigation evidence.
 
-    Checks:
-        1. Negative location statements.
-        2. Negative ownership statements.
-        3. Duplicate relationships.
-        4. Opposite relationships between the same entities.
+    The engine compares CLAIMS against independent EVIDENCE:
+
+        claimed_not_present_at  +  recorded_presence
+            -> presence_contradiction
+
+        claimed_no_contact      +  recorded_calls
+            -> communication_contradiction
+
+    and keeps a few relation-consistency checks (duplicates,
+    opposite pairs, timeline) as structured objects.
 
     Args:
         text (str):
             Original investigation text.
 
         relations (list):
-            Extracted relationships.
+            Extracted relationships (with optional metadata).
 
     Returns:
-        list:
-            Unique contradiction messages.
+        list[dict]:
+            Unique structured contradiction objects.
     """
-
-    # --------------------------------------------------------
-    # SAFETY
-    # --------------------------------------------------------
 
     text = text or ""
     relations = relations or []
 
     contradictions = []
 
-    lower_text = _safe_string(text)
+    # --------------------------------------------------------
+    # A. EVIDENCE-BASED CONTRADICTIONS
+    # --------------------------------------------------------
+    #
+    # Collect claims and independent evidence facts, then
+    # compare real values (subject, location, time interval /
+    # quantity), never bare relationship labels.
+
+    negative_presence = []
+    recorded_presence = []
+    negative_contact = []
+    recorded_calls = []
+
+    for relation in relations:
+
+        if not isinstance(relation, dict):
+            continue
+
+        relation_type = _safe_string(
+            relation.get("relation")
+        )
+
+        source = _get_text(
+            relation.get("source")
+        )
+
+        target = _get_text(
+            relation.get("target")
+        )
+
+        if not relation_type or not source or not target:
+            continue
+
+        if relation_type == "claimed_not_present_at":
+
+            negative_presence.append({
+                "subject": source,
+                "location": target,
+                "start": _relation_meta(
+                    relation,
+                    "start_time",
+                ),
+                "end": _relation_meta(
+                    relation,
+                    "end_time",
+                ),
+            })
+
+        elif relation_type == "recorded_presence":
+
+            recorded_presence.append({
+                "subject": target,
+                "location": _relation_meta(
+                    relation,
+                    "location",
+                ),
+                "start": _relation_meta(
+                    relation,
+                    "start_time",
+                ),
+                "end": _relation_meta(
+                    relation,
+                    "end_time",
+                ),
+                "device": source,
+            })
+
+        elif relation_type == "claimed_no_contact":
+
+            negative_contact.append({
+                "subject": source,
+                "other": target,
+            })
+
+        elif relation_type == "recorded_calls":
+
+            recorded_calls.append({
+                "device": source,
+                "callee": target,
+                "caller": _relation_meta(
+                    relation,
+                    "caller",
+                ),
+                "count": _relation_meta(
+                    relation,
+                    "call_count",
+                ),
+                "start": _relation_meta(
+                    relation,
+                    "start_time",
+                ),
+                "end": _relation_meta(
+                    relation,
+                    "end_time",
+                ),
+            })
+
+    def _times_overlap(start_a, end_a, start_b, end_b):
+        """
+        True when two time intervals overlap.
+
+        When either interval cannot be parsed, the recorded
+        evidence of the same subject at the same place is still
+        taken as conflicting with the claim rather than silently
+        discarded.
+        """
+        a_start = _parse_time_to_minutes(start_a)
+        a_end = _parse_time_to_minutes(end_a)
+        b_start = _parse_time_to_minutes(start_b)
+        b_end = _parse_time_to_minutes(end_b)
+
+        if None in (a_start, a_end, b_start, b_end):
+            return True
+
+        return not (a_end < b_start or b_end < a_start)
 
     # --------------------------------------------------------
-    # 1. NEGATIVE LOCATION STATEMENTS
+    # A1. PRESENCE CONTRADICTIONS
     # --------------------------------------------------------
+    #
+    #   Claim:   Arun Kumar was not present at Warehouse
+    #            between 10:00 PM and 11:30 PM.
+    #   Evidence: CCTV Footage records Arun Kumar at Warehouse
+    #            from 10:15 PM to 11:20 PM.
 
-    location_negative_patterns = [
-        "not near",
-        "not at",
-        "not in",
-        "was not near",
-        "wasn't near",
-        "was not at",
-        "wasn't at"
-    ]
+    for claim in negative_presence:
 
-    for pattern in location_negative_patterns:
+        for evidence in recorded_presence:
 
-        if pattern in lower_text:
+            if (
+                claim["subject"].casefold()
+                != evidence["subject"].casefold()
+            ):
+                continue
 
-            contradictions.append(
-                "A negative location relationship "
-                "was detected."
+            if (
+                claim["location"].casefold()
+                != _safe_string(
+                    evidence["location"] or ""
+                )
+            ):
+                continue
+
+            if not _times_overlap(
+                claim["start"],
+                claim["end"],
+                evidence["start"],
+                evidence["end"],
+            ):
+                continue
+
+            intervals_known = bool(
+                claim["start"]
+                and claim["end"]
+                and evidence["start"]
+                and evidence["end"]
             )
 
-            break
+            severity = "HIGH" if intervals_known else "MEDIUM"
 
-    # --------------------------------------------------------
-    # 2. NEGATIVE OWNERSHIP STATEMENTS
-    # --------------------------------------------------------
-
-    ownership_negative_patterns = [
-        "not owned",
-        "does not own",
-        "doesn't own",
-        "did not own",
-        "didn't own",
-        "not belonging to",
-        "does not belong to"
-    ]
-
-    for pattern in ownership_negative_patterns:
-
-        if pattern in lower_text:
-
-            contradictions.append(
-                "A possible ownership contradiction "
-                "was detected."
+            claim_text = (
+                f"{claim['subject']} stated that he was not "
+                f"present at {claim['location']}"
             )
 
-            break
+            if claim["start"] and claim["end"]:
+                claim_text += (
+                    f" between {_format_time(claim['start'])} "
+                    f"and {_format_time(claim['end'])}"
+                )
+
+            evidence_text = (
+                f"{evidence['device']} records "
+                f"{evidence['subject']} at "
+                f"{evidence['location']}"
+            )
+
+            if evidence["start"] and evidence["end"]:
+                evidence_text += (
+                    f" from {_format_time(evidence['start'])} "
+                    f"to {_format_time(evidence['end'])}"
+                )
+
+            contradictions.append(
+                _make_contradiction(
+                    "presence_contradiction",
+                    claim["subject"],
+                    claim_text,
+                    evidence_text,
+                    severity=severity,
+                )
+            )
 
     # --------------------------------------------------------
-    # 3. CHECK DUPLICATE RELATIONSHIPS
+    # A2. COMMUNICATION CONTRADICTIONS
+    # --------------------------------------------------------
+    #
+    #   Claim:   Arun Kumar stated that he did not contact Ravi.
+    #   Evidence: Phone Records show 8 calls between
+    #            Arun Kumar and Ravi between 10:30 PM and
+    #            11:10 PM.
+
+    for claim in negative_contact:
+
+        for record in recorded_calls:
+
+            if (
+                claim["subject"].casefold()
+                != _safe_string(
+                    record["caller"] or ""
+                )
+            ):
+                continue
+
+            if (
+                claim["other"].casefold()
+                != record["callee"].casefold()
+            ):
+                continue
+
+            claim_text = (
+                f"{claim['subject']} stated that he did not "
+                f"contact {claim['other']}"
+            )
+
+            evidence_text = (
+                f"{record['device']} show "
+                f"{record['count']} calls between "
+                f"{claim['subject']} and {claim['other']}"
+            )
+
+            if record["start"] and record["end"]:
+                evidence_text += (
+                    f" between {_format_time(record['start'])} "
+                    f"and {_format_time(record['end'])}"
+                )
+
+            contradictions.append(
+                _make_contradiction(
+                    "communication_contradiction",
+                    claim["subject"],
+                    claim_text,
+                    evidence_text,
+                    severity="HIGH",
+                )
+            )
+
+    # --------------------------------------------------------
+    # B. CHECK DUPLICATE RELATIONSHIPS
     # --------------------------------------------------------
 
     seen = set()
@@ -268,7 +556,6 @@ def detect_contradictions(
             "relation"
         )
 
-        # Ignore incomplete relationships.
         if not source or not target:
             continue
 
@@ -281,8 +568,14 @@ def detect_contradictions(
         if key in seen:
 
             contradictions.append(
-                "Duplicate relationship detected: "
-                f"{source} -> {target}"
+                _make_contradiction(
+                    "duplicate_relationship",
+                    source,
+                    f"{source} -> {target} "
+                    f"({relation_type}) appears more than once.",
+                    "The same relationship was extracted repeatedly.",
+                    severity="LOW",
+                )
             )
 
         else:
@@ -290,7 +583,7 @@ def detect_contradictions(
             seen.add(key)
 
     # --------------------------------------------------------
-    # 4. CHECK OPPOSITE RELATIONSHIPS
+    # C. CHECK OPPOSITE RELATIONSHIPS
     # --------------------------------------------------------
 
     positive_negative_pairs = {
@@ -347,13 +640,19 @@ def detect_contradictions(
             ):
 
                 contradictions.append(
-                    "Conflicting relationships detected: "
-                    f"{source} -> {target} "
-                    f"({positive} / {negative})."
+                    _make_contradiction(
+                        "opposite_relationships",
+                        source,
+                        f"Conflicting relationships for "
+                        f"{source} -> {target}.",
+                        f"{source} and {target} are connected by "
+                        f"both '{positive}' and '{negative}'.",
+                        severity="MEDIUM",
+                    )
                 )
 
     # --------------------------------------------------------
-    # 5. TIMELINE CONTRADICTIONS
+    # D. TIMELINE CONTRADICTIONS
     # --------------------------------------------------------
     #
     # If a person claims to have LEFT a location at a certain
@@ -361,8 +660,6 @@ def detect_contradictions(
     # person at the scene AFTER that claimed time, the two
     # statements conflict.
 
-    #   claimed_departures: person -> {"time_text", "minutes"}
-    #   presence_evidence:  person -> [(time_text, minutes, relation)]
     claimed_departures = {}
     presence_evidence = {}
 
@@ -386,11 +683,6 @@ def detect_contradictions(
         if not source or not target:
             continue
 
-        # The person is the source of "claimed" edges;
-        # presence can also appear with the person as source
-        # (e.g. observed_at, accessed_at).
-
-        # A claimed departure: person --claimed--> time.
         if relation_type in _CLAIM_RELATION_TYPES:
 
             minutes = _parse_time_to_minutes(target)
@@ -405,7 +697,6 @@ def detect_contradictions(
                     }
                 )
 
-        # Presence evidence: person --*_at--> time.
         if relation_type in _PRESENCE_RELATION_TYPES:
 
             minutes = _parse_time_to_minutes(target)
@@ -439,20 +730,33 @@ def detect_contradictions(
             for evidence in later_evidence:
 
                 contradictions.append(
-                    "Timeline contradiction: "
-                    f"{person} claimed to have left at "
-                    f"{departure['time_text'].upper()}, "
-                    "but evidence places them at the scene "
-                    f"at {evidence['time_text'].upper()}"
-                    f" ({evidence['relation']})."
+                    _make_contradiction(
+                        "timeline_contradiction",
+                        person,
+                        f"{person} claimed to have left at "
+                        f"{_format_time(departure['time_text'])}.",
+                        f"Evidence places {person} at the scene "
+                        f"at {_format_time(evidence['time_text'])} "
+                        f"({evidence['relation']}).",
+                        severity="MEDIUM",
+                    )
                 )
 
     # --------------------------------------------------------
-    # 6. RETURN UNIQUE RESULTS
+    # E. RETURN UNIQUE RESULTS
     # --------------------------------------------------------
 
-    return list(
-        dict.fromkeys(
-            contradictions
+    unique = {}
+
+    for contradiction in contradictions:
+
+        key = (
+            contradiction.get("type", ""),
+            _safe_string(contradiction.get("subject", "")),
+            contradiction.get("claim", ""),
+            contradiction.get("evidence", ""),
         )
-    )
+
+        unique[key] = contradiction
+
+    return list(unique.values())

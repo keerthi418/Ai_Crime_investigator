@@ -1880,7 +1880,7 @@ function searchPathDisplay(
         path.length > 1
     ) {
 
-        return detail.edges
+        const labeled = detail.edges
             .map(
                 (edge, index) =>
                     (index === 0 ? String(edge.source) : "") +
@@ -1889,9 +1889,20 @@ function searchPathDisplay(
             )
             .join("");
 
+        return `PATH FOUND — ${labeled}`;
+
     }
 
-    return formatPath(path);
+    if (
+        Array.isArray(path) &&
+        path.length > 0
+    ) {
+
+        return `PATH FOUND — ${formatPath(path)}`;
+
+    }
+
+    return "NO PATH FOUND";
 
 }
 
@@ -2306,9 +2317,10 @@ function runSelectedAlgorithm(
 
     setText(
         elementId,
-        algorithmLabelPathText(
+        clientPathDisplay(
             disconnected,
-            path
+            path,
+            algorithm
         )
     );
 
@@ -2330,6 +2342,125 @@ function runSelectedAlgorithm(
    Runs BFS / DFS / A* on the loaded cytoscape graph.
    Wired to the "Run Search" button in the Graph Search panel.
 ========================================================= */
+
+/* =========================================================
+   CLIENT GRAPH PATH DISPLAY
+   -----------------------------------------------
+   Displays the COMPLETE path found by the client-side
+   BFS / DFS / A* search — from the start node all the way
+   to the target node.  It never stops at an intermediate
+   node such as ₹75,000 when the target is Ravi.
+
+   The relation label comes from the ACTUAL cytoscape edge
+   that exists between each pair of consecutive path nodes.
+========================================================= */
+
+function graphEdgeLabel(
+    sourceId,
+    targetId
+) {
+
+    if (
+        !graphInstance
+    ) {
+
+        return "related_to";
+
+    }
+
+    const edge = graphInstance
+        .getElementById(sourceId)
+        .connectedEdges()
+        .filter(candidate => {
+
+            const source = candidate.source().id();
+            const target = candidate.target().id();
+
+            return (
+                (
+                    source === sourceId &&
+                    target === targetId
+                ) ||
+                (
+                    source === targetId &&
+                    target === sourceId
+                )
+            );
+
+        })
+        .first();
+
+    if (
+        !edge ||
+        edge.empty()
+    ) {
+
+        return "related_to";
+
+    }
+
+    return (
+        edge.data("relation") ||
+        edge.data("label") ||
+        "related_to"
+    );
+
+}
+
+
+function clientPathDisplay(
+    disconnected,
+    path,
+    algorithm
+) {
+
+    if (
+        disconnected &&
+        (!Array.isArray(path) || path.length === 0)
+    ) {
+
+        return (
+            "Selected entities are disconnected. " +
+            "No path exists."
+        );
+
+    }
+
+    if (
+        !Array.isArray(path) ||
+        path.length === 0
+    ) {
+
+        return "NO PATH FOUND";
+
+    }
+
+    let labeled = String(path[0] || "");
+
+    for (
+        let index = 0;
+        index < path.length - 1;
+        index++
+    ) {
+
+        const relation = graphEdgeLabel(
+            path[index],
+            path[index + 1]
+        );
+
+        labeled +=
+            ` → [${relation}] → ` +
+            String(path[index + 1]);
+
+    }
+
+    return (
+        `PATH FOUND — ${labeled}` +
+        `  ·  Length ${path.length - 1}`
+    );
+
+}
+
 
 function runGraphPathSearch() {
 
@@ -2477,25 +2608,28 @@ function runGraphPathSearch() {
 
     setText(
         "bfsResult",
-        algorithmLabelPathText(
+        clientPathDisplay(
             disconnected,
-            bfsPath
+            bfsPath,
+            "BFS"
         )
     );
 
     setText(
         "dfsResult",
-        algorithmLabelPathText(
+        clientPathDisplay(
             disconnected,
-            dfsPath
+            dfsPath,
+            "DFS"
         )
     );
 
     setText(
         "astarResult",
-        algorithmLabelPathText(
+        clientPathDisplay(
             disconnected,
-            astarPath
+            astarPath,
+            "A*"
         )
     );
 

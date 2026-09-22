@@ -2506,16 +2506,72 @@ def generate_pdf_report(
 
         for contradiction in contradictions:
 
-            contradiction_text = safe_text(
-                contradiction
-            )
+            if isinstance(contradiction, dict):
 
-            story.append(
-                Paragraph(
-                    "• " + contradiction_text,
-                    body_style
+                contra_type = str(
+                    contradiction.get("type", "contradiction")
+                ).replace("_", " ").strip()
+
+                severity = str(
+                    contradiction.get("severity", "")
+                ).strip().upper()
+
+                message = (
+                    contradiction.get("message")
+                    or contradiction.get("claim")
+                    or ""
                 )
-            )
+
+                heading = (
+                    f"• {contra_type.title()} "
+                    f"[{severity}]: {message}"
+                    if severity
+                    else f"• {contra_type.title()}: {message}"
+                )
+
+                story.append(
+                    Paragraph(
+                        safe_text(heading),
+                        body_style
+                    )
+                )
+
+                claim_text = safe_text(
+                    contradiction.get("claim") or ""
+                )
+
+                evidence_text = safe_text(
+                    contradiction.get("evidence") or ""
+                )
+
+                if claim_text:
+                    story.append(
+                        Paragraph(
+                            "Claim: " + claim_text,
+                            body_style
+                        )
+                    )
+
+                if evidence_text:
+                    story.append(
+                        Paragraph(
+                            "Evidence: " + evidence_text,
+                            body_style
+                        )
+                    )
+
+            else:
+
+                contradiction_text = safe_text(
+                    contradiction
+                )
+
+                story.append(
+                    Paragraph(
+                        "• " + contradiction_text,
+                        body_style
+                    )
+                )
 
     else:
 
