@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AI Crime Investigator - Login</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<!-- =========================================================
+     AUTHENTICATION PAGE
+========================================================= -->
+
+<div class="auth-page">
+
+    <!-- =====================================================
+         LEFT BRAND SECTION
+    ====================================================== -->
+
+    <section class="auth-brand">
+
+        <div class="brand-logo">
+            🕵️
+        </div>
+
+        <h1>
+            AI Crime Investigator
+        </h1>
+
+        <p class="brand-subtitle">
+            Intelligent Digital Investigation Platform
+        </p>
+
+        <div class="brand-description">
+
+            <p>
+                Analyze crime cases using Artificial Intelligence,
+                Natural Language Processing and Knowledge Graphs.
+            </p>
+
+        </div>
+
+
+        <!-- SECURITY FEATURES -->
+
+        <div class="security-features">
+
+            <div class="security-feature">
+
+                <span>🧠</span>
+
+                <div>
+                    <strong>AI Reasoning</strong>
+
+                    <small>
+                        Intelligent case analysis
+                    </small>
+                </div>
+
+            </div>
+
+
+            <div class="security-feature">
+
+                <span>🔗</span>
+
+                <div>
+                    <strong>Knowledge Graph</strong>
+
+                    <small>
+                        Discover entity relationships
+                    </small>
+                </div>
+
+            </div>
+
+
+            <div class="security-feature">
+
+                <span>🔐</span>
+
+                <div>
+                    <strong>Secure Investigation</strong>
+
+                    <small>
+                        Authentication and 2FA protection
+                    </small>
+                </div>
+
+            </div>
+
+
+            <div class="security-feature">
+
+                <span>📊</span>
+
+                <div>
+                    <strong>Evidence Analysis</strong>
+
+                    <small>
+                        Structured investigation reports
+                    </small>
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         RIGHT LOGIN SECTION
+    ====================================================== -->
+
+    <section class="auth-container">
+
+        <div class="auth-card">
+
+            <!-- HEADER -->
+
+            <div class="auth-header">
+
+                <div class="auth-icon">
+                    🔐
+                </div>
+
+                <h2>
+                    Investigator Login
+                </h2>
+
+                <p>
+                    Sign in to access your investigation dashboard
+                </p>
+
+            </div>
+
+
+            <!-- =================================================
+                 LOGIN FORM
+            ================================================== -->
+
+            <form
+                id="loginForm"
+                class="auth-form"
+            >
+
+                <!-- EMAIL -->
+
+                <div class="form-group">
+
+                    <label for="loginEmail">
+                        Email Address
+                    </label>
+
+                    <input
+                        type="email"
+                        id="loginEmail"
+                        placeholder="Enter your email"
+                        autocomplete="email"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- PASSWORD -->
+
+                <div class="form-group">
+
+                    <label for="loginPassword">
+                        Password
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            placeholder="Enter your password"
+                            autocomplete="current-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="password-toggle"
+                            onclick="togglePassword('loginPassword', this)"
+                            aria-label="Show password"
+                        >
+                            Show
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- LOGIN MESSAGE -->
+
+                <div
+                    id="loginMessage"
+                    class="message"
+                    role="alert"
+                    aria-live="polite"
+                ></div>
+
+
+                <!-- SIGN IN -->
+
+                <button
+                    type="submit"
+                    class="primary-button full-width"
+                >
+                    Sign In
+                </button>
+
+
+                <!-- FORGOT PASSWORD -->
+
+                <button
+                    type="button"
+                    class="forgot-password-button"
+                    onclick="showForgotPassword()"
+                >
+                    Forgot Password?
+                </button>
+
+            </form>
+
+
+            <!-- DIVIDER -->
+
+            <div class="auth-divider">
+
+                <span>
+                    New investigator?
+                </span>
+
+            </div>
+
+
+            <!-- REGISTER -->
+
+            <button
+                type="button"
+                class="secondary-button full-width"
+                onclick="showRegister()"
+            >
+                Create Investigator Account
+            </button>
+
+        </div>
+
+    </section>
+
+</div>
+
+
+<!-- =========================================================
+     REGISTER MODAL
+========================================================= -->
+
+<div
+    id="registerModal"
+    class="modal hidden"
+>
+
+    <div class="modal-content">
+
+        <button
+            type="button"
+            class="modal-close"
+            onclick="hideRegister()"
+            aria-label="Close registration"
+        >
+            ×
+        </button>
+
+
+        <div class="modal-header">
+
+            <div class="auth-icon">
+                👤
+            </div>
+
+            <h2>
+                Create Investigator Account
+            </h2>
+
+            <p>
+                Register a new secure investigation account.
+            </p>
+
+        </div>
+
+
+        <form
+            id="registerForm"
+            class="auth-form"
+        >
+
+            <!-- USERNAME -->
+
+            <div class="form-group">
+
+                <label for="registerUsername">
+                    Username
+                </label>
+
+                <input
+                    type="text"
+                    id="registerUsername"
+                    placeholder="Enter username"
+                    autocomplete="username"
+                    minlength="3"
+                    maxlength="50"
+                    required
+                >
+
+            </div>
+
+
+            <!-- EMAIL -->
+
+            <div class="form-group">
+
+                <label for="registerEmail">
+                    Email Address
+                </label>
+
+                <input
+                    type="email"
+                    id="registerEmail"
+                    placeholder="Enter email"
+                    autocomplete="email"
+                    required
+                >
+
+            </div>
+
+
+            <!-- PASSWORD -->
+
+            <div class="form-group">
+
+                <label for="registerPassword">
+                    Password
+                </label>
+
+                <div class="password-wrapper">
+
+                    <input
+                        type="password"
+                        id="registerPassword"
+                        placeholder="Minimum 8 characters"
+                        autocomplete="new-password"
+                        minlength="8"
+                        required
+                    >
+
+                    <button
+                        type="button"
+                        class="password-toggle"
+                        onclick="togglePassword('registerPassword', this)"
+                        aria-label="Show password"
+                    >
+                        Show
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- MESSAGE -->
+
+            <div
+                id="registerMessage"
+                class="message"
+                role="alert"
+                aria-live="polite"
+            ></div>
+
+
+            <!-- CREATE ACCOUNT -->
+
+            <button
+                type="submit"
+                class="primary-button full-width"
+            >
+                Create Account
+            </button>
+
+
+            <!-- CANCEL -->
+
+            <button
+                type="button"
+                class="secondary-button full-width"
+                onclick="hideRegister()"
+            >
+                Cancel
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     LOGIN 2FA MODAL
+========================================================= -->
+
+<div
+    id="twoFALoginModal"
+    class="modal hidden"
+>
+
+    <div class="modal-content small-modal">
+
+        <div class="modal-header">
+
+            <div class="auth-icon">
+                🔐
+            </div>
+
+            <h2>
+                Two-Factor Authentication
+            </h2>
+
+            <p>
+                Enter the 6-digit code from your authenticator app.
+            </p>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="login2FACode">
+                Authentication Code
+            </label>
+
+            <input
+                type="text"
+                id="login2FACode"
+                class="otp-input"
+                placeholder="000000"
+                maxlength="6"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+            >
+
+        </div>
+
+
+        <div
+            id="login2FAMessage"
+            class="message"
+            role="alert"
+            aria-live="polite"
+        ></div>
+
+
+        <button
+            type="button"
+            class="primary-button full-width"
+            onclick="verifyLogin2FA()"
+        >
+            Verify & Continue
+        </button>
+
+
+        <button
+            type="button"
+            class="secondary-button full-width"
+            onclick="closeTwoFALoginModal()"
+        >
+            Cancel
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     FORGOT PASSWORD MODAL
+========================================================= -->
+
+<div
+    id="forgotPasswordModal"
+    class="modal hidden"
+>
+
+    <div class="modal-content">
+
+        <button
+            type="button"
+            class="modal-close"
+            onclick="hideForgotPassword()"
+            aria-label="Close password reset"
+        >
+            ×
+        </button>
+
+
+        <div class="modal-header">
+
+            <div class="auth-icon">
+                🔑
+            </div>
+
+            <h2>
+                Reset Password
+            </h2>
+
+            <p>
+                Generate a password reset token for your account.
+            </p>
+
+        </div>
+
+
+        <!-- =================================================
+             REQUEST RESET TOKEN
+        ================================================== -->
+
+        <div class="form-group">
+
+            <label for="forgotEmail">
+                Email Address
+            </label>
+
+            <input
+                type="email"
+                id="forgotEmail"
+                placeholder="Enter your registered email"
+                autocomplete="email"
+            >
+
+        </div>
+
+
+        <button
+            type="button"
+            class="primary-button full-width"
+            onclick="requestPasswordReset()"
+        >
+            Generate Reset Token
+        </button>
+
+
+        <div
+            id="forgotMessage"
+            class="message"
+            role="alert"
+            aria-live="polite"
+        ></div>
+
+
+        <!-- =================================================
+             RESET PASSWORD FORM
+        ================================================== -->
+
+        <form
+            id="resetForm"
+            class="reset-card hidden"
+            onsubmit="event.preventDefault(); resetPassword();"
+        >
+
+            <h3>
+                Set New Password
+            </h3>
+
+
+            <!-- TOKEN -->
+
+            <div class="form-group">
+
+                <label for="resetToken">
+                    Reset Token
+                </label>
+
+                <input
+                    type="text"
+                    id="resetToken"
+                    placeholder="Enter reset token"
+                    autocomplete="off"
+                >
+
+            </div>
+
+
+            <!-- NEW PASSWORD -->
+
+            <div class="form-group">
+
+                <label for="resetNewPassword">
+                    New Password
+                </label>
+
+                <div class="password-wrapper">
+
+                    <input
+                        type="password"
+                        id="resetNewPassword"
+                        placeholder="Minimum 8 characters"
+                        autocomplete="new-password"
+                        minlength="8"
+                    >
+
+                    <button
+                        type="button"
+                        class="password-toggle"
+                        onclick="togglePassword('resetNewPassword', this)"
+                        aria-label="Show password"
+                    >
+                        Show
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- CONFIRM PASSWORD -->
+
+            <div class="form-group">
+
+                <label for="resetConfirmPassword">
+                    Confirm Password
+                </label>
+
+                <div class="password-wrapper">
+
+                    <input
+                        type="password"
+                        id="resetConfirmPassword"
+                        placeholder="Confirm new password"
+                        autocomplete="new-password"
+                        minlength="8"
+                    >
+
+                    <button
+                        type="button"
+                        class="password-toggle"
+                        onclick="togglePassword('resetConfirmPassword', this)"
+                        aria-label="Show password"
+                    >
+                        Show
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- RESET -->
+
+            <button
+                type="submit"
+                class="primary-button full-width"
+            >
+                Reset Password
+            </button>
+
+        </form>
+
+
+        <!-- CLOSE -->
+
+        <button
+            type="button"
+            class="secondary-button full-width"
+            onclick="hideForgotPassword()"
+        >
+            Close
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================= -->
+
+<script src="script.js"></script>
+
+</body>
+</html>

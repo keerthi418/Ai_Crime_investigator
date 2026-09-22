@@ -1,0 +1,2473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AI Crime Investigator</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+    <!-- Cytoscape -->
+    <script
+        src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js">
+    </script>
+</head>
+
+
+<body>
+
+<div id="app" class="app">
+
+
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
+
+    <aside class="sidebar">
+
+        <!-- BRAND -->
+
+        <div class="sidebar-brand">
+
+            <div class="sidebar-logo">
+                🕵️
+            </div>
+
+            <div>
+                <strong>AI Crime</strong>
+                <span>Investigator</span>
+            </div>
+
+        </div>
+
+
+        <!-- NAVIGATION -->
+
+        <nav class="sidebar-nav">
+
+            <button
+                type="button"
+                class="nav-item active"
+                onclick="showPage('dashboard', this)"
+            >
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                onclick="showPage('investigation', this)"
+            >
+                <span class="nav-icon">🔎</span>
+                <span>New Investigation</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                onclick="showAllCases()"
+            >
+                <span class="nav-icon">🗂️</span>
+                <span>All Cases</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                onclick="showPage('activity', this)"
+            >
+                <span class="nav-icon">📋</span>
+                <span>Audit Logs</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                onclick="showPage('profile', this)"
+            >
+                <span class="nav-icon">👤</span>
+                <span>Profile</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                onclick="showPage('settings', this)"
+            >
+                <span class="nav-icon">⚙️</span>
+                <span>Settings</span>
+            </button>
+
+        </nav>
+
+
+        <!-- SIDEBAR USER -->
+
+        <div class="sidebar-user">
+
+            <div
+                id="sidebarAvatar"
+                class="avatar"
+            >
+                U
+            </div>
+
+            <div class="sidebar-user-info">
+
+                <strong id="sidebarUsername">
+                    Investigator
+                </strong>
+
+                <span>
+                    Investigator
+                </span>
+
+            </div>
+
+            <button
+                type="button"
+                class="logout-button"
+                onclick="logout()"
+                title="Logout"
+            >
+                ⎋ <span>Logout</span>
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================================================
+         MAIN AREA
+    ====================================================== -->
+
+    <main class="main">
+
+
+        <!-- =================================================
+             TOP BAR
+        ================================================== -->
+
+        <header class="topbar">
+
+            <div class="topbar-left">
+
+                <span class="topbar-label">
+                    AI CRIME INVESTIGATOR
+                </span>
+
+                <h1 id="pageTitle">
+                    Investigation Dashboard
+                </h1>
+
+            </div>
+
+
+            <div class="topbar-right">
+
+                <div class="system-status">
+
+                    <span class="status-dot"></span>
+
+                    <span id="systemStatusText">
+                        System Online
+                    </span>
+
+                </div>
+
+
+                <div class="top-user">
+
+                    <div
+                        id="topAvatar"
+                        class="avatar small"
+                    >
+                        U
+                    </div>
+
+                    <span id="topUsername">
+                        Investigator
+                    </span>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             DASHBOARD
+        ================================================== -->
+
+        <section
+            id="dashboardPage"
+            class="page active-page"
+        >
+
+
+            <!-- WELCOME -->
+
+            <div class="page-heading">
+
+                <div>
+
+                    <span class="section-label">
+                        INVESTIGATION CENTER
+                    </span>
+
+                    <h2>
+                        Welcome,
+                        <span id="welcomeName">
+                            Investigator
+                        </span>
+                    </h2>
+
+                    <p>
+                        Analyze cases, discover relationships,
+                        and generate intelligent investigation reports.
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="primary-button"
+                    onclick="openInvestigation()"
+                >
+                    + New Investigation
+                </button>
+
+            </div>
+
+
+            <!-- DASHBOARD STATISTICS -->
+
+            <div class="statistics-grid">
+
+<div class="stat-card stat-card-clickable" onclick="showAllCases()" role="button" tabindex="0" title="Show all cases">
+
+                        <div class="stat-icon blue">
+                            📁
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Total Cases
+                            </span>
+
+                            <strong id="caseCount">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon green">
+                            🟢
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Ongoing Cases
+                            </span>
+
+                            <strong id="dashboardOngoing">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon red">
+                            🔴
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Finished / Closed
+                            </span>
+
+                            <strong id="dashboardFinished">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon orange">
+                            ⏳
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Not Finished
+                            </span>
+
+                            <strong id="dashboardNotFinished">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon purple">
+                        🧩
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Entities Detected
+                        </span>
+
+                        <strong id="entityCount">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon green">
+                        🎯
+                    </div>
+
+                    <div>
+
+                        <span>
+                            AI Confidence
+                        </span>
+
+                        <strong id="dashboardConfidence">
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon red">
+                        ⚠️
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Contradictions
+                        </span>
+
+                        <strong id="dashboardContradictions">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- QUICK ACTIONS -->
+
+            <div class="section-header">
+
+                <div>
+
+                    <h3>
+                        Quick Actions
+                    </h3>
+
+                    <p>
+                        Start your next investigation workflow.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="quick-actions">
+
+                <button
+                    type="button"
+                    class="quick-card"
+                    onclick="openInvestigation()"
+                >
+
+                    <div class="quick-icon">
+                        🔎
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Analyze New Case
+                        </strong>
+
+                        <span>
+                            Extract entities and relationships
+                        </span>
+
+                    </div>
+
+                </button>
+
+
+                <button
+                    type="button"
+                    class="quick-card"
+                    onclick="showPage('activity')"
+                >
+
+                    <div class="quick-icon">
+                        📋
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            View Audit Logs
+                        </strong>
+
+                        <span>
+                            Review investigation activity
+                        </span>
+
+                    </div>
+
+                </button>
+
+
+                <button
+                    type="button"
+                    class="quick-card"
+                    onclick="showPage('settings')"
+                >
+
+                    <div class="quick-icon">
+                        🔐
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Security Settings
+                        </strong>
+
+                        <span>
+                            Manage password and 2FA
+                        </span>
+
+                    </div>
+
+                </button>
+
+            </div>
+
+
+            <!-- CASE MANAGEMENT -->
+
+            <div id="caseManagementPanel" class="panel case-management-panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Investigation Cases
+                        </h3>
+
+                        <p>
+                            Green = ongoing investigation ·
+                            Red = closed case
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="caseList"
+                    class="case-list"
+                >
+
+                    <div class="empty-state">
+                        Loading cases...
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- DAILY ACTIVITY -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Daily Investigation Activity
+                        </h3>
+
+                        <p>
+                            Last 7 days
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="dailyChart"
+                    class="daily-chart"
+                >
+                </div>
+
+            </div>
+
+
+            <!-- LAST RESULT -->
+
+            <div
+                id="dashboardResult"
+                class="panel hidden"
+            >
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Latest Investigation
+                        </h3>
+
+                        <p>
+                            Most recent analysis summary
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div id="lastSummary">
+
+                    <div class="empty-state">
+                        No investigation completed yet.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             INVESTIGATION PAGE
+        ================================================== -->
+
+        <section
+            id="investigationPage"
+            class="page"
+        >
+
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
+            <!-- PAGE HEADER -->
+
+            <div class="page-heading">
+
+                <div>
+
+                    <span class="section-label">
+                        AI ANALYSIS WORKSPACE
+                    </span>
+
+                    <h2>
+                        New Investigation
+                    </h2>
+
+                    <p>
+                        Submit a case description for AI-powered
+                        entity extraction, graph analysis and reasoning.
+                    </p>
+
+                </div>
+
+
+                <div
+                    id="investigationStatus"
+                    class="investigation-status ongoing"
+                >
+                    ● INVESTIGATION ONGOING
+                </div>
+
+            </div>
+
+
+            <!-- CASE INPUT -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Case Information
+                        </h3>
+
+                        <p>
+                            Enter a case name and the available
+                            investigation evidence.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <!-- CASE NAME -->
+
+                <div class="form-group">
+
+                    <label for="caseName">
+                        Case Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="caseName"
+                        placeholder="Example: Chennai Banking Fraud"
+                        maxlength="150"
+                    >
+
+                </div>
+
+
+                <!-- CASE TEXT -->
+
+                <div class="form-group">
+
+                    <label for="caseText">
+                        Investigation Evidence
+                    </label>
+
+                    <textarea
+                        id="caseText"
+                        rows="10"
+                        placeholder="Example: John met Sarah at Chennai Central on Monday. Sarah transferred money to John. CCTV footage showed John near the station..."
+                    ></textarea>
+
+                </div>
+
+
+                <!-- GRAPH SEARCH INPUT -->
+
+                <div class="two-column">
+
+                    <div class="form-group">
+
+                        <label for="startNode">
+                            Start Entity
+                        </label>
+
+                        <input
+                            type="text"
+                            id="startNode"
+                            placeholder="Example: John"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="targetNode">
+                            Target Entity
+                        </label>
+
+                        <input
+                            type="text"
+                            id="targetNode"
+                            placeholder="Example: Sarah"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <!-- ACTION -->
+
+                <div class="investigation-actions">
+
+                    <button
+                        id="runAnalysisButton"
+                        type="button"
+                        class="primary-button"
+                        onclick="runInvestigation()"
+                    >
+
+                        🧠
+
+                        <span id="analysisButtonText">
+                            Run AI Investigation
+                        </span>
+
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="investigationMessage"
+                    class="message"
+                ></div>
+
+            </div>
+
+
+            <!-- =================================================
+                 PIPELINE
+            ================================================== -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Investigation Pipeline
+                        </h3>
+
+                        <p>
+                            Processing stages used by the investigator.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="pipeline">
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            01
+                        </div>
+
+                        <strong>
+                            Text Processing
+                        </strong>
+
+                        <span>
+                            Clean & tokenize evidence
+                        </span>
+
+                    </div>
+
+
+                    <div class="pipeline-arrow">
+                        →
+                    </div>
+
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            02
+                        </div>
+
+                        <strong>
+                            NLP Extraction
+                        </strong>
+
+                        <span>
+                            Detect entities
+                        </span>
+
+                    </div>
+
+
+                    <div class="pipeline-arrow">
+                        →
+                    </div>
+
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            03
+                        </div>
+
+                        <strong>
+                            Relationship Analysis
+                        </strong>
+
+                        <span>
+                            Connect evidence
+                        </span>
+
+                    </div>
+
+
+                    <div class="pipeline-arrow">
+                        →
+                    </div>
+
+
+                    <div class="pipeline-step">
+
+                        <div class="pipeline-number">
+                            04
+                        </div>
+
+                        <strong>
+                            AI Reasoning
+                        </strong>
+
+                        <span>
+                            Calculate confidence
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 RESULTS
+            ================================================== -->
+
+            <div
+                id="resultsArea"
+                class="hidden"
+            >
+
+
+                <!-- RESULT STATISTICS -->
+
+                <div class="statistics-grid result-stats">
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon blue">
+                            🧩
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Entities
+                            </span>
+
+                            <strong id="resultEntityCount">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon purple">
+                            🔗
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Relationships
+                            </span>
+
+                            <strong id="resultRelationCount">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon green">
+                            🎯
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Confidence
+                            </span>
+
+                            <strong id="resultConfidence">
+                                —
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="stat-card">
+
+                        <div class="stat-icon red">
+                            ⚠️
+                        </div>
+
+                        <div>
+
+                            <span>
+                                Contradictions
+                            </span>
+
+                            <strong id="resultContradictions">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     KNOWLEDGE GRAPH
+                ================================================== -->
+
+                <div class="panel graph-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Knowledge Graph
+                            </h3>
+
+                            <p>
+                                Visual representation of entities
+                                and their relationships.
+                            </p>
+
+                        </div>
+
+
+                        <div class="graph-controls">
+
+                            <button
+                                type="button"
+                                onclick="zoomGraphIn()"
+                                title="Zoom In"
+                            >
+                                +
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="zoomGraphOut()"
+                                title="Zoom Out"
+                            >
+                                −
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="fitGraph()"
+                            >
+                                Fit
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="resetGraph()"
+                            >
+                                Reset
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="clearGraphPath()"
+                            >
+                                Clear Path
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="cy"
+                        class="cy"
+                    ></div>
+
+
+                    <!-- RELATIONSHIP REASON -->
+
+                    <div
+                        id="graphReasonBox"
+                        class="graph-reason-box hidden"
+                    >
+
+                        <div class="graph-reason-title">
+                            🔗 Relationship Reason
+                        </div>
+
+                        <div
+                            id="graphReasonText"
+                            class="graph-reason-text"
+                        >
+                            Select a relationship in the graph
+                            to view its evidence.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     ENTITY + RELATIONSHIP
+                ================================================== -->
+
+                <div class="two-column">
+
+
+                    <!-- ENTITIES -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Detected Entities
+                                </h3>
+
+                                <p>
+                                    People, locations, dates and evidence.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div
+                            id="entitiesList"
+                            class="entities-list"
+                        >
+
+                            <span>
+                                No entities detected.
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- RELATIONS -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Relationships
+                                </h3>
+
+                                <p>
+                                    Connections extracted from the case.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div
+                            id="relationsList"
+                            class="relations-list"
+                        >
+
+                            <span>
+                                No relationships detected.
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     SEARCH ALGORITHMS
+                ================================================== -->
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Graph Search Algorithms
+                            </h3>
+
+                            <p>
+                                Find relationship paths automatically using BFS, DFS and A*.
+                            </p>
+
+                            <div class="algorithm-pair-label">
+                                Active pair: <strong id="algorithmPairLabel">Automatic graph pair</strong>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="algorithms-grid">
+
+
+                        <!-- BFS -->
+
+                        <div
+                            class="algorithm-card"
+                            onclick="runSelectedAlgorithm('BFS')"
+                            role="button"
+                            tabindex="0"
+                        >
+
+                            <div class="algorithm-icon">
+                                🔵
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    Breadth-First Search
+                                </strong>
+
+                                <span>
+                                    BFS
+                                </span>
+
+                            </div>
+
+                            <p id="bfsResult">
+                                Not run yet
+                            </p>
+
+                        </div>
+
+
+                        <!-- DFS -->
+
+                        <div
+                            class="algorithm-card"
+                            onclick="runSelectedAlgorithm('DFS')"
+                            role="button"
+                            tabindex="0"
+                        >
+
+                            <div class="algorithm-icon">
+                                🟣
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    Depth-First Search
+                                </strong>
+
+                                <span>
+                                    DFS
+                                </span>
+
+                            </div>
+
+                            <p id="dfsResult">
+                                Not run yet
+                            </p>
+
+                        </div>
+
+
+                        <!-- A STAR -->
+
+                        <div
+                            class="algorithm-card"
+                            onclick="runSelectedAlgorithm('A*')"
+                            role="button"
+                            tabindex="0"
+                        >
+
+                            <div class="algorithm-icon">
+                                🟢
+                            </div>
+
+                            <div>
+
+                                <strong>
+                                    A* Search
+                                </strong>
+
+                                <span>
+                                    A*
+                                </span>
+
+                            </div>
+
+                            <p id="astarResult">
+                                Not run yet
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     GRAPH SEARCH RUNNER
+                ================================================== -->
+
+                <div class="panel graph-search-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                Graph Search Runner
+                            </h3>
+
+                            <p>
+                                Run BFS, DFS or A* between two entities.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="graph-search-controls">
+
+                        <div class="form-group">
+
+                            <label for="searchStartNode">
+                                Source Node
+                            </label>
+
+                            <select
+                                id="searchStartNode"
+                            >
+
+                                <option value="">
+                                    Select a node
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="searchTargetNode">
+                                Destination Node
+                            </label>
+
+                            <select
+                                id="searchTargetNode"
+                            >
+
+                                <option value="">
+                                    Select a node
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="searchAlgorithm">
+                                Algorithm
+                            </label>
+
+                            <select
+                                id="searchAlgorithm"
+                            >
+
+                                <option value="BFS">
+                                    BFS
+                                </option>
+
+                                <option value="DFS">
+                                    DFS
+                                </option>
+
+                                <option value="A*">
+                                    A*
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <button
+                            type="button"
+                            class="primary-button"
+                            onclick="runGraphPathSearch()"
+                        >
+                            Run Search
+                        </button>
+
+                    </div>
+
+
+                    <div
+                        id="searchResultDetails"
+                        class="search-result-details hidden"
+                    >
+
+                        <div class="empty-state">
+                            Select source, destination and algorithm, then click Run Search.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     CONFIDENCE + CONTRADICTIONS
+                ================================================== -->
+
+                <div class="two-column">
+
+
+                    <!-- CONFIDENCE -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Bayesian Confidence
+                                </h3>
+
+                                <p>
+                                    AI confidence in the investigation findings.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="confidence-container">
+
+                            <div
+                                id="confidenceCircle"
+                                class="confidence-circle"
+                            >
+
+                                <span id="confidenceValue">
+                                    —
+                                </span>
+
+                            </div>
+
+
+                            <div>
+
+                                <h4>
+                                    Confidence Assessment
+                                </h4>
+
+                                <p id="confidenceExplanation">
+                                    Waiting for investigation results.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- CONTRADICTIONS -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+
+                                <h3>
+                                    Contradictions
+                                </h3>
+
+                                <p>
+                                    Conflicting evidence detected by the system.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div id="contradictionsList">
+
+                            <div class="empty-state">
+                                No contradictions detected.
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     AI EXPLANATION
+                ================================================== -->
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <h3>
+                                AI Investigation Explanation
+                            </h3>
+
+                            <p>
+                                Reasoning generated from the extracted evidence.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div id="explanationList">
+
+                        <div class="empty-state">
+                            No explanation available.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     REPORT ACTIONS
+                ================================================== -->
+
+                <div class="panel report-panel">
+
+                    <div>
+
+                        <h3>
+                            Investigation Report
+                        </h3>
+
+                        <p>
+                            Generate and review the professional
+                            investigation report.
+                        </p>
+
+                    </div>
+
+
+                    <div class="investigation-actions">
+
+                        <button
+                            type="button"
+                            class="secondary-button"
+                            onclick="openReport()"
+                        >
+                            📄 Open PDF Report
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="primary-button"
+                            onclick="downloadReport()"
+                        >
+                            ⬇ Download Report
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             AUDIT LOGS PAGE
+        ================================================== -->
+
+        <section
+            id="activityPage"
+            class="page"
+        >
+
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
+            <div class="page-heading">
+
+                <div>
+
+                    <span class="section-label">
+                        SECURITY MONITORING
+                    </span>
+
+                    <h2>
+                        Audit Logs
+                    </h2>
+
+                    <p>
+                        Review authentication and investigation activity.
+                    </p>
+
+                </div>
+
+
+                <div class="stat-badge">
+
+                    <strong id="logCount">
+                        0
+                    </strong>
+
+                    Events
+
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <div class="table-wrapper">
+
+                    <table class="data-table">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Date & Time
+                                </th>
+
+                                <th>
+                                    Action
+                                </th>
+
+                                <th>
+                                    User
+                                </th>
+
+                                <th>
+                                    Case
+                                </th>
+
+                                <th>
+                                    Details
+                                </th>
+
+                                <th>
+                                    Status
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="auditTable">
+
+                            <tr>
+
+                                <td colspan="5">
+                                    Loading audit events...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             PROFILE PAGE
+        ================================================== -->
+
+        <section
+            id="profilePage"
+            class="page"
+        >
+
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
+            <div class="page-heading">
+
+                <div>
+
+                    <span class="section-label">
+                        ACCOUNT
+                    </span>
+
+                    <h2>
+                        Investigator Profile
+                    </h2>
+
+                    <p>
+                        Your investigator account information.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- PROFILE HEADER -->
+
+            <div class="profile-card">
+
+                <div
+                    id="profileAvatar"
+                    class="profile-avatar"
+                >
+                    U
+                </div>
+
+
+                <div class="profile-info">
+
+                    <span class="profile-label">
+                        Username
+                    </span>
+
+                    <h3 id="profileUsername">
+                        Investigator
+                    </h3>
+
+
+                    <span class="profile-label">
+                        Email
+                    </span>
+
+                    <p id="profileEmail">
+                        —
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- PROFILE CASE STATISTICS -->
+
+            <div class="statistics-grid profile-statistics">
+
+                <div class="stat-card">
+
+                    <div class="stat-icon blue">
+                        📁
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Total Cases
+                        </span>
+
+                        <strong id="profileTotalCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon green">
+                        ✓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Finished Cases
+                        </span>
+
+                        <strong id="profileClosedCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon purple">
+                        🔎
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ongoing Cases
+                        </span>
+
+                        <strong id="profileOngoingCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon red">
+                        ⏳
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Not Finished
+                        </span>
+
+                        <strong id="profileNotFinishedCases">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             SETTINGS PAGE
+        ================================================== -->
+
+        <section
+            id="settingsPage"
+            class="page"
+        >
+
+            <button
+                type="button"
+                class="back-button"
+                onclick="showPage('dashboard')"
+            >
+                ← Back to Dashboard
+            </button>
+
+
+            <div class="page-heading">
+
+                <div>
+
+                    <span class="section-label">
+                        SECURITY CENTER
+                    </span>
+
+                    <h2>
+                        Account Settings
+                    </h2>
+
+                    <p>
+                        Manage password, authentication and account security.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 CHANGE PASSWORD
+            ================================================== -->
+
+            <div class="settings-card">
+
+                <button
+                    type="button"
+                    class="settings-card-header"
+                    onclick="toggleSettingsCard(this)"
+                    aria-expanded="true"
+                >
+
+                    <div class="settings-icon">
+                        🔑
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Change Password
+                        </h3>
+
+                        <p>
+                            Update your current account password.
+                        </p>
+
+                    </div>
+
+                    <span class="settings-chevron">
+                        ▼
+                    </span>
+
+                </button>
+
+
+                <div class="settings-card-body">
+
+                    <div class="two-column">
+
+                        <div class="form-group">
+
+                            <label for="currentPassword">
+                                Current Password
+                            </label>
+
+                            <div class="password-wrapper">
+
+                                <input
+                                    type="password"
+                                    id="currentPassword"
+                                    placeholder="Current password"
+                                >
+
+                                <button
+                                    type="button"
+                                    class="password-toggle"
+                                    onclick="togglePassword('currentPassword', this)"
+                                >
+                                    Show
+                                </button>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="newPassword">
+                                New Password
+                            </label>
+
+                            <div class="password-wrapper">
+
+                                <input
+                                    type="password"
+                                    id="newPassword"
+                                    placeholder="Minimum 8 characters"
+                                >
+
+                                <button
+                                    type="button"
+                                    class="password-toggle"
+                                    onclick="togglePassword('newPassword', this)"
+                                >
+                                    Show
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="confirmPassword">
+                            Confirm New Password
+                        </label>
+
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            placeholder="Confirm new password"
+                        >
+
+                    </div>
+
+
+                    <div
+                        id="passwordMessage"
+                        class="message"
+                    ></div>
+
+
+                    <button
+                        type="button"
+                        class="primary-button"
+                        onclick="changePassword()"
+                    >
+                        Update Password
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 TWO FACTOR AUTHENTICATION
+            ================================================== -->
+
+            <div class="settings-card">
+
+                <button
+                    type="button"
+                    class="settings-card-header"
+                    onclick="toggleSettingsCard(this)"
+                    aria-expanded="false"
+                >
+
+                    <div class="settings-icon">
+                        🛡️
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Two-Factor Authentication
+                        </h3>
+
+                        <p>
+                            Add an additional authentication layer to your account.
+                        </p>
+
+                    </div>
+
+                    <span class="settings-chevron">
+                        ▼
+                    </span>
+
+                </button>
+
+
+                <div class="settings-card-body hidden">
+
+                    <!-- STATUS -->
+
+                    <div class="security-box">
+
+                        <div>
+
+                            <span class="profile-label">
+                                Current Status
+                            </span>
+
+                            <strong id="twoFAStatus">
+                                Checking...
+                            </strong>
+
+                        </div>
+
+
+                        <div>
+
+                            <button
+                                id="enable2FAButton"
+                                type="button"
+                                class="primary-button"
+                                onclick="setup2FA()"
+                            >
+                                Setup 2FA
+                            </button>
+
+
+                            <button
+                                id="disable2FAButton"
+                                type="button"
+                                class="danger-button hidden"
+                                onclick="disable2FA()"
+                            >
+                                Disable 2FA
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- SETUP -->
+
+                    <div
+                        id="twoFASetup"
+                        class="twoFA-setup hidden"
+                    >
+
+                        <h4>
+                            Authenticator Setup
+                        </h4>
+
+                        <p>
+                            Add the following secret to Google Authenticator,
+                            Microsoft Authenticator or another TOTP application.
+                        </p>
+
+
+                        <!-- QR -->
+
+                        <div class="qr-container">
+
+                            <img
+                                id="twoFAQr"
+                                class="hidden"
+                                alt="2FA QR Code"
+                            >
+
+                        </div>
+
+
+                        <!-- SECRET -->
+
+                        <div class="form-group">
+
+                            <label>
+                                Secret Key
+                            </label>
+
+                            <div
+                                id="twoFASecret"
+                                class="secret-key"
+                            >
+                                —
+                            </div>
+
+                        </div>
+
+
+                        <!-- URI -->
+
+                        <div class="form-group">
+
+                            <label>
+                                Provisioning URI
+                            </label>
+
+                            <div
+                                id="twoFAUri"
+                                class="secret-key"
+                            >
+                                —
+                            </div>
+
+                        </div>
+
+
+                        <!-- OTP -->
+
+                        <div class="form-group">
+
+                            <label for="twoFACode">
+                                Authenticator Code
+                            </label>
+
+                            <input
+                                type="text"
+                                id="twoFACode"
+                                class="otp-input"
+                                maxlength="6"
+                                inputmode="numeric"
+                                autocomplete="one-time-code"
+                                placeholder="000000"
+                            >
+
+                        </div>
+
+
+                        <button
+                            id="enable2FAButtonSetup"
+                            type="button"
+                            class="primary-button"
+                            onclick="enable2FA()"
+                        >
+                            Verify & Enable 2FA
+                        </button>
+
+                    </div>
+
+
+                    <div
+                        id="twoFAMessage"
+                        class="message"
+                    ></div>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 PASSWORD RESET
+            ================================================== -->
+
+            <div class="settings-card reset-card">
+
+                <button
+                    type="button"
+                    class="settings-card-header"
+                    onclick="toggleSettingsCard(this)"
+                    aria-expanded="false"
+                >
+
+                    <div class="settings-icon">
+                        🔄
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Password Recovery
+                        </h3>
+
+                        <p>
+                            Generate a reset token if you need to recover your password.
+                        </p>
+
+                    </div>
+
+                    <span class="settings-chevron">
+                        ▼
+                    </span>
+
+                </button>
+
+
+                <div class="settings-card-body hidden">
+
+                    <div class="form-group">
+
+                        <label for="resetEmail">
+                            Account Email
+                        </label>
+
+                        <input
+                            type="email"
+                            id="resetEmail"
+                            placeholder="Enter registered email"
+                        >
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        onclick="requestResetFromSettings()"
+                    >
+                        Generate Reset Token
+                    </button>
+
+
+                    <div
+                        id="settingsResetMessage"
+                        class="message"
+                    ></div>
+
+
+                    <!-- COMPLETE RESET -->
+
+                    <form
+                        id="settingsResetForm"
+                        class="hidden"
+                        onsubmit="event.preventDefault(); completeResetFromSettings();"
+                    >
+
+                        <div class="form-group">
+
+                            <label for="settingsResetToken">
+                                Reset Token
+                            </label>
+
+                            <input
+                                type="text"
+                                id="settingsResetToken"
+                                placeholder="Reset token"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsResetPassword">
+                                New Password
+                            </label>
+
+                            <input
+                                type="password"
+                                id="settingsResetPassword"
+                                placeholder="Minimum 8 characters"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label for="settingsResetConfirm">
+                                Confirm Password
+                            </label>
+
+                            <input
+                                type="password"
+                                id="settingsResetConfirm"
+                                placeholder="Confirm password"
+                            >
+
+                        </div>
+
+
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            Complete Password Reset
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 LOGOUT
+            ================================================== -->
+
+            <div class="settings-card danger-zone">
+
+                <div class="settings-card-header static-header">
+
+                    <div class="settings-icon">
+                        🚪
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Sign Out
+                        </h3>
+
+                        <p>
+                            End your current investigator session.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="settings-card-body">
+
+                    <button
+                        type="button"
+                        class="danger-button"
+                        onclick="logout()"
+                    >
+                        Sign Out Securely
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- =========================================================
+     APPLICATION JAVASCRIPT
+========================================================= -->
+
+<!-- CASE DETAILS MODAL -->
+
+<div
+    id="caseDetailsModal"
+    class="modal hidden"
+>
+
+    <div class="modal-card case-details-card">
+
+        <button
+            type="button"
+            class="modal-close"
+            onclick="closeCaseDetails()"
+            aria-label="Close case details"
+        >
+            ×
+        </button>
+
+
+        <div class="modal-header">
+
+            <div class="auth-icon">
+                📁
+            </div>
+
+            <h2>
+                Case Details
+            </h2>
+
+            <p>
+                Full summary of the selected investigation case.
+            </p>
+
+        </div>
+
+
+        <div
+            id="caseDetailsBody"
+            class="case-details-body"
+        >
+
+            <div class="empty-state">
+                Loading case details...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script src="script.js"></script>
+
+</body>
+</html>
