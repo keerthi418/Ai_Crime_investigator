@@ -1,8 +1,8 @@
-# 🕵️ AI Crime Investigator
+# 🕵️ Design And Development of AI Crime Investigator
 
 ### Turning scattered crime information into connected investigative intelligence.
 
-**AI Crime Investigator** is an AI-powered investigation-support system designed to transform unstructured crime information into a **connected case representation**.
+**Design And Development of AI Crime Investigator** is an AI-powered investigation-support system designed to transform unstructured crime information into a **connected case representation**.
 
 Instead of treating a crime complaint, witness statement, evidence, suspect, location, and timeline as separate pieces of information, the system connects them and analyzes how they relate to one another.
 
